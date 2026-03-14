@@ -15,15 +15,19 @@
             <el-icon><House /></el-icon>
             <span>管理首页</span>
           </el-menu-item>
-          <el-menu-item index="/admin/user-management">
+          <el-menu-item index="/admin/users">
             <el-icon><User /></el-icon>
             <span>用户管理</span>
           </el-menu-item>
-          <el-menu-item index="/admin/device-management">
+          <el-menu-item index="/admin/devices">
             <el-icon><Monitor /></el-icon>
             <span>设备管理</span>
           </el-menu-item>
-          <el-menu-item index="/admin/system-settings">
+          <el-menu-item index="/admin/device-monitor">
+            <el-icon><VideoCamera /></el-icon>
+            <span>设备监控</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/settings">
             <el-icon><Setting /></el-icon>
             <span>系统设置</span>
           </el-menu-item>
@@ -78,7 +82,8 @@ import {
   Setting,
   Document,
   Menu,
-  ArrowDown
+  ArrowDown,
+  VideoCamera
 } from '@element-plus/icons-vue'
 
 export default {
@@ -90,7 +95,8 @@ export default {
     Setting,
     Document,
     Menu,
-    ArrowDown
+    ArrowDown,
+    VideoCamera
   },
   setup() {
     const router = useRouter()

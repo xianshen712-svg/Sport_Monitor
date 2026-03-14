@@ -133,13 +133,23 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" align="center"></el-table-column>
-        <el-table-column prop="deviceId" label="设备ID" width="150" align="center"></el-table-column>
-        <el-table-column prop="deviceType" label="设备类型" width="100" align="center">
+        <el-table-column prop="id" label="ID" width="80" align="center"></el-table-column>
+        <el-table-column prop="mac" label="MAC地址" width="180" align="center"></el-table-column>
+        <el-table-column prop="name" label="设备名称" width="150" align="center">
           <template v-slot="scope">
-            <el-tag type="info">{{ scope.row.deviceType }}</el-tag>
+            {{ scope.row.name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="serialNumber" label="序列号" width="200" align="center"></el-table-column>
+        <el-table-column prop="student_name" label="绑定学生" width="120" align="center">
+          <template v-slot="scope">
+            {{ scope.row.student_name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="student_id" label="学号" width="150" align="center">
+          <template v-slot="scope">
+            {{ scope.row.student_id || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template v-slot="scope">
             <el-tag :type="getDeviceStatusColor(scope.row.status)">
@@ -147,52 +157,30 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="battery" label="电量" width="100" align="center">
+        <el-table-column prop="created_at" label="创建时间" width="180" align="center">
           <template v-slot="scope">
-            <el-progress
-              :percentage="Math.round(scope.row.battery)"
-              :stroke-width="8"
-              :color="getBatteryColor(scope.row.battery)"
-              status="active"
-              :show-text="true"
-              :format="(percentage) => `${Math.round(percentage)}%`"
-            ></el-progress>
+            {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column prop="studentName" label="绑定学生" width="120" align="center">
+        <el-table-column prop="updated_at" label="更新时间" width="180" align="center">
           <template v-slot="scope">
-            {{ scope.row.studentName || '-' }}
+            {{ formatDate(scope.row.updated_at) }}
           </template>
         </el-table-column>
-        <el-table-column prop="studentId" label="学号" width="150" align="center">
-          <template v-slot="scope">
-            {{ scope.row.studentId || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="lastOnline" label="最后在线" width="180" align="center">
-          <template v-slot="scope">
-            {{ scope.row.lastOnline || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="location" label="位置" width="120" align="center"></el-table-column>
-        <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         <el-table-column label="操作" width="200" align="center">
           <template v-slot="scope">
-            <el-button type="primary" size="small" @click="viewDeviceDetail(scope.row.deviceId)">
-              <i class="el-icon-view"></i> 查看
-            </el-button>
-            <el-button type="info" size="small" @click="editDevice(scope.row.deviceId)">
+            <el-button type="info" size="small" @click="editDevice(scope.row.id)">
               <i class="el-icon-edit"></i> 编辑
             </el-button>
             <el-button 
-              :type="scope.row.status === 'unbound' ? 'success' : 'warning'" 
+              :type="scope.row.student_id ? 'warning' : 'success'" 
               size="small" 
-              @click="scope.row.status === 'unbound' ? bindDevice(scope.row.deviceId) : unbindDevice(scope.row.deviceId)"
+              @click="scope.row.student_id ? unbindDevice(scope.row.id) : showBindDialog(scope.row.id)"
             >
-              <i :class="scope.row.status === 'unbound' ? 'el-icon-link' : 'el-icon-unlink'"></i> 
-              {{ scope.row.status === 'unbound' ? '绑定' : '解绑' }}
+              <i :class="scope.row.student_id ? 'el-icon-unlink' : 'el-icon-link'"></i> 
+              {{ scope.row.student_id ? '解绑' : '绑定' }}
             </el-button>
-            <el-button type="danger" size="small" @click="deleteDevice(scope.row.deviceId)">
+            <el-button type="danger" size="small" @click="deleteDevice(scope.row.id)">
               <i class="el-icon-delete"></i> 删除
             </el-button>
           </template>
@@ -309,68 +297,15 @@ export default {
   data() {
     return {
       // 设备数据
-      devices: [
-        {
-          deviceId: 'DEV001',
-          deviceType: 'heartRateBand',
-          serialNumber: 'HRB20230001',
-          status: 'online',
-          battery: 85,
-          studentName: '曹睿焜',
-          studentId: '2023423320102',
-          lastOnline: '2023-11-25 14:30:00',
-          location: '操场',
-          remarks: '心率监测手环'
-        },
-        {
-          deviceId: 'DEV002',
-          deviceType: 'heartRateBand',
-          serialNumber: 'HRB20230002',
-          status: 'online',
-          battery: 65,
-          studentName: '张小明',
-          studentId: '2023423320103',
-          lastOnline: '2023-11-25 14:29:00',
-          location: '操场',
-          remarks: '心率监测手环'
-        },
-        {
-          deviceId: 'DEV003',
-          deviceType: 'sportWatch',
-          serialNumber: 'SW20230001',
-          status: 'offline',
-          battery: 30,
-          studentName: '李小红',
-          studentId: '2023423320104',
-          lastOnline: '2023-11-25 10:15:00',
-          location: '教室',
-          remarks: '运动手表'
-        },
-        {
-          deviceId: 'DEV004',
-          deviceType: 'sportSensor',
-          serialNumber: 'SS20230001',
-          status: 'error',
-          battery: 20,
-          studentName: '王大明',
-          studentId: '2023423320105',
-          lastOnline: '2023-11-25 12:45:00',
-          location: '体育馆',
-          remarks: '运动传感器'
-        },
-        {
-          deviceId: 'DEV005',
-          deviceType: 'heartRateBand',
-          serialNumber: 'HRB20230005',
-          status: 'unbound',
-          battery: 90,
-          studentName: '',
-          studentId: '',
-          lastOnline: '',
-          location: '设备仓库',
-          remarks: '未绑定学生'
-        }
-      ],
+      devices: [],
+      // 设备统计
+      deviceStats: {
+        total: 0,
+        online: 0,
+        offline: 0,
+        bound: 0,
+        unbound: 0
+      },
       // 搜索和筛选
       searchQuery: '',
       deviceStatusFilter: '',
@@ -412,9 +347,10 @@ export default {
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         result = result.filter(device => 
-          device.deviceId.toLowerCase().includes(query) ||
-          (device.studentName && device.studentName.toLowerCase().includes(query)) ||
-          (device.studentId && device.studentId.toLowerCase().includes(query))
+          device.mac.toLowerCase().includes(query) ||
+          (device.name && device.name.toLowerCase().includes(query)) ||
+          (device.student_name && device.student_name.toLowerCase().includes(query)) ||
+          (device.student_id && device.student_id.toLowerCase().includes(query))
         );
       }
       
@@ -428,23 +364,23 @@ export default {
     
     // 统计数据
     totalDevices() {
-      return this.devices.length;
+      return this.deviceStats.total || 0;
     },
     
     onlineDevices() {
-      return this.devices.filter(device => device.status === 'online').length;
+      return this.deviceStats.online || 0;
     },
     
     offlineDevices() {
-      return this.devices.filter(device => device.status === 'offline').length;
+      return this.deviceStats.offline || 0;
     },
     
     errorDevices() {
-      return this.devices.filter(device => device.status === 'error').length;
+      return 0; // 后端没有error状态，只有online/offline
     },
     
     unboundDevices() {
-      return this.devices.filter(device => device.status === 'unbound').length;
+      return this.deviceStats.unbound || 0;
     },
     
     // 最近活跃设备

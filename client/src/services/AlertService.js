@@ -244,7 +244,7 @@ export default class AlertService {
     // 检查是否已存在相同的未处理预警
     const existingAlert = this.alerts.find(
       a => a.type === alert.type && 
-           a.studentInfo.studentId === alert.studentInfo.studentId && 
+           ((a.studentInfo && a.studentInfo.studentId) === (alert.studentInfo && alert.studentInfo.studentId)) && 
            !a.handled
     );
 
@@ -299,7 +299,7 @@ export default class AlertService {
 
   // 根据学生ID获取预警
   getAlertsByStudentId(studentId) {
-    return this.alerts.filter(alert => alert.studentInfo.studentId === studentId);
+    return this.alerts.filter(alert => alert.studentInfo && alert.studentInfo.studentId === studentId);
   }
 
   // 更新预警规则

@@ -178,11 +178,6 @@ export function useWebSocket() {
   const lastHeartbeat = webSocketService.getLastHeartbeat();
   const isConnected = () => webSocketService.isConnected();
 
-  // 自动连接和清理
-  onUnmounted(() => {
-    webSocketService.disconnect();
-  });
-
   return {
     connect,
     disconnect,

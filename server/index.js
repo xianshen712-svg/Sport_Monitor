@@ -239,18 +239,101 @@ async function handleDeviceData(topic, data) {
   try {
     const rawDeviceData = JSON.parse(data);
     
-    // 根据主题确定设备ID
-    let deviceId;
-    if (topic.startsWith('sport/monitor/android/')) {
-      // Android数据格式：sport/monitor/android/{deviceId}
-      deviceId = topic.split('/').pop();
-      // Android数据可能包含userId字段，用于关联用户
-      if (rawDeviceData.userId) {
-        await associateDeviceWithUser(deviceId, rawDeviceData.userId);
+    // 优先使用MQTT消息中的deviceId字段
+    let deviceId = rawDeviceData.deviceId;
+    
+    // 如果消息中没有deviceId，则从主题中提取
+    if (!deviceId) {
+      if (topic.startsWith('sport/monitor/android/')) {
+        // Android数据格式：sport/monitor/android/{deviceId}
+        deviceId = topic.split('/').pop();
+      } else if (topic.startsWith('sport/monitor/ble/')) {
+        // BLE数据格式：sport/monitor/ble/{deviceId}/{datatype}
+        const parts = topic.split('/');
+        // 设备ID在第4个位置（索引3）
+        deviceId = parts[3];
+      } else {
+        deviceId = topic.split('/').pop();
       }
-    } else {
-      // 原有手环数据格式
-      deviceId = topic.split('/').pop();
+    }
+    
+    // 对于BLE数据，我们需要合并来自不同主题的数据
+    // 主题格式：sport/monitor/ble/{deviceId}/{datatype}
+    const topicParts = topic.split('/');
+    const dataType = topicParts.length > 4 ? topicParts[4] : null;
+    
+    // 如果是特定数据类型，只更新该字段
+    if (dataType && deviceId) {
+      // 从Redis获取现有数据（如果有）
+      let existingData = {};
+      try {
+        if (redisClient.isOpen) {
+          const cached = await redisClient.get(`device:${deviceId}:realtime`);
+          if (cached) {
+            existingData = JSON.parse(cached);
+          }
+        }
+      } catch (redisError) {
+        console.warn('Redis读取失败:', redisError.message);
+      }
+      
+      // 合并数据
+      const mergedData = { ...existingData };
+      
+      // 根据数据类型更新相应字段
+      if (dataType === 'heartrate' && rawDeviceData.heartRate !== undefined) {
+        mergedData.heartRate = rawDeviceData.heartRate;
+      } else if (dataType === 'bloodoxygen' && rawDeviceData.bloodOxygen !== undefined) {
+        mergedData.bloodOxygen = rawDeviceData.bloodOxygen;
+      } else if (dataType === 'steps' && rawDeviceData.steps !== undefined) {
+        mergedData.steps = rawDeviceData.steps;
+      } else if (dataType === 'temperature' && rawDeviceData.bodyTemperature !== undefined) {
+        mergedData.bodyTemperature = rawDeviceData.bodyTemperature;
+      }
+      
+      // 确保有设备ID和时间戳
+      mergedData.deviceId = deviceId;
+      mergedData.timestamp = new Date().toISOString();
+      
+      // 缓存合并后的数据
+      try {
+        if (redisClient.isOpen) {
+          await redisClient.set(`device:${deviceId}:realtime`, JSON.stringify(mergedData));
+        }
+      } catch (redisError) {
+        console.warn('Redis缓存失败:', redisError.message);
+      }
+      
+      // 每收到一个完整的数据集（包含所有4种数据类型）才保存到MySQL
+      // 这里我们简化处理：只要有数据就保存，但只保存当前收到的数据类型
+      const finalDeviceData = {
+        heartRate: dataType === 'heartrate' ? rawDeviceData.heartRate : (mergedData.heartRate || null),
+        steps: dataType === 'steps' ? rawDeviceData.steps : (mergedData.steps || 0),
+        bloodOxygen: dataType === 'bloodoxygen' ? rawDeviceData.bloodOxygen : (mergedData.bloodOxygen || null),
+        bodyTemperature: dataType === 'temperature' ? rawDeviceData.bodyTemperature : (mergedData.bodyTemperature || null),
+        bloodPressure: mergedData.bloodPressure || null,
+        bloodSugar: mergedData.bloodSugar || null,
+        deviceId: deviceId,
+        timestamp: mergedData.timestamp
+      };
+      
+      console.log(`处理BLE数据 - 设备ID: ${deviceId}, 数据类型: ${dataType}, 值: ${rawDeviceData[dataType === 'heartrate' ? 'heartRate' : dataType === 'bloodoxygen' ? 'bloodOxygen' : dataType === 'steps' ? 'steps' : 'bodyTemperature']}`);
+      
+      // 每次都插入新记录，保留完整的历史数据
+      // 这样可以追踪心率等数据随时间的变化
+      await saveDeviceDataToMySQL(deviceId, finalDeviceData);
+      console.log(`插入设备 ${deviceId} 的新数据记录`);
+      
+      // 广播给WebSocket客户端
+      broadcastDeviceData(deviceId, finalDeviceData);
+      
+      console.log(`成功处理来自 ${deviceId} 的 ${dataType} 数据`);
+      return;
+    }
+    
+    // Android数据可能包含userId字段，用于关联用户
+    if (rawDeviceData.userId) {
+      await associateDeviceWithUser(deviceId, rawDeviceData.userId);
     }
     
     // 应用数据质量控制
@@ -329,6 +412,52 @@ function calculateExerciseMetrics(deviceData) {
   };
 }
 
+// 更新设备数据到MySQL
+async function updateDeviceDataInMySQL(deviceId, deviceData, recordId) {
+  try {
+    // 计算运动状况评估指标
+    const exerciseMetrics = calculateExerciseMetrics(deviceData);
+    
+    // 获取学生ID
+    let studentId = null;
+    const [userResult] = await pool.execute('SELECT student_id FROM users WHERE device_id = ?', [deviceId]);
+    if (userResult.length > 0) {
+      studentId = userResult[0].student_id;
+    }
+    
+    // 提取血压值（假设deviceData.bloodPressure是对象 {systolic, diastolic}）
+    const systolic = deviceData.bloodPressure ? deviceData.bloodPressure.systolic : null;
+    const diastolic = deviceData.bloodPressure ? deviceData.bloodPressure.diastolic : null;
+    
+    const [result] = await pool.execute(
+      `UPDATE device_data SET 
+        student_id = ?, 
+        heart_rate = ?, 
+        steps = ?, 
+        blood_oxygen = ?, 
+        body_temperature = ?, 
+        blood_pressure_systolic = ?, 
+        blood_pressure_diastolic = ?, 
+        blood_sugar = ?, 
+        fatigue_level = ?, 
+        exercise_load = ?, 
+        aerobic_stress = ?, 
+        anaerobic_stress = ?, 
+        recovery_level = ?, 
+        record_time = NOW()
+       WHERE id = ?`,
+      [studentId, deviceData.heartRate, deviceData.steps, deviceData.bloodOxygen, 
+       deviceData.bodyTemperature, systolic, diastolic, deviceData.bloodSugar, 
+       exerciseMetrics.fatigueLevel, exerciseMetrics.exerciseLoad, exerciseMetrics.aerobicStress, 
+       exerciseMetrics.anaerobicStress, exerciseMetrics.recoveryLevel, recordId]
+    );
+    return result;
+  } catch (error) {
+    console.error('更新设备数据到MySQL错误:', error);
+    throw error;
+  }
+}
+
 // 保存设备数据到MySQL
 async function saveDeviceDataToMySQL(deviceId, deviceData) {
   try {
@@ -393,13 +522,8 @@ async function checkHealthAbnormalities(deviceId, deviceData) {
       abnormalities.push({ type: 'blood_pressure', value: deviceData.bloodPressure, status: 'high' });
     }
     
-    // 如果有异常，保存到数据库
+    // 如果有异常，发送预警通知
     if (abnormalities.length > 0) {
-      await pool.execute(
-        'INSERT INTO health_abnormalities (user_id, device_id, abnormalities, timestamp) VALUES (?, ?, ?, ?)',
-        [user.id, deviceId, JSON.stringify(abnormalities), new Date()]
-      );
-      
       // 发送预警通知
       sendAlertNotification(user, abnormalities);
     }
@@ -440,11 +564,13 @@ app.get('/', (req, res) => {
 const userRoutes = require('./routes/userRoutes');
 const deviceDataRoutes = require('./routes/deviceDataRoutes');
 const mqttRoutes = require('./routes/mqttRoutes');
+const deviceRoutes = require('./routes/deviceRoutes');
 
 // 使用路由
 app.use('/api/users', userRoutes);
 app.use('/api/device-data', deviceDataRoutes);
 app.use('/api/mqtt', mqttRoutes);
+app.use('/api/devices', deviceRoutes);
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;

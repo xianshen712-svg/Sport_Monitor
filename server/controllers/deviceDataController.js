@@ -1,8 +1,57 @@
-const DeviceData = require('../models/deviceData');
+const DeviceData = require('../models/deviceData_real');
 const User = require('../models/user');
 const { pool } = require('../index');
 
+// BLE工具使用的设备ID列表
+const BLE_DEVICE_IDS = ['heartrate', 'bloodoxygen', 'steps', 'temperature'];
+
 class DeviceDataController {
+  // 从多个BLE设备聚合数据
+  static async aggregateBLEDeviceData() {
+    try {
+      const pool = require('../index').pool;
+      if (!pool) {
+        console.log('数据库连接池未就绪');
+        return null;
+      }
+      
+      const latestData = {};
+      
+      for (const deviceId of BLE_DEVICE_IDS) {
+        const [rows] = await pool.execute(
+          'SELECT * FROM device_data WHERE device_id = ? ORDER BY record_time DESC LIMIT 1',
+          [deviceId]
+        );
+        if (rows.length > 0) {
+          latestData[deviceId] = rows[0];
+        }
+      }
+      
+      // 如果没有任何BLE设备数据，返回null
+      if (Object.keys(latestData).length === 0) {
+        return null;
+      }
+      
+      // 合并数据
+      const mergedData = {
+        heart_rate: latestData.heartrate?.heart_rate || null,
+        blood_oxygen: latestData.bloodoxygen?.blood_oxygen || null,
+        steps: latestData.steps?.steps || 0,
+        body_temperature: latestData.temperature?.body_temperature || null,
+        record_time: new Date().toISOString(),
+        // 使用最新的记录时间
+        latest_record_time: Math.max(
+          ...Object.values(latestData).map(d => new Date(d.record_time).getTime())
+        )
+      };
+      
+      return mergedData;
+    } catch (error) {
+      console.error('聚合BLE设备数据失败:', error);
+      return null;
+    }
+  }
+
   // 获取设备实时数据
   static async getDeviceRealtimeData(req, res) {
     try {
@@ -23,46 +72,99 @@ class DeviceDataController {
   static async getUserRealtimeData(req, res) {
     try {
       const userId = req.user.id;
-      // 由于是模拟数据，直接使用DeviceData.getUserDeviceData获取最新数据
+      console.log('获取用户实时数据，用户ID:', userId);
+      
       // 为了兼容前端，使用最近7天的时间范围
       const endTime = new Date().toISOString();
       const startTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       
-      const data = await DeviceData.getUserDeviceData(userId, startTime, endTime, 1);
+      // 首先尝试获取用户关联设备的数据
+      let data = await DeviceData.getUserDeviceData(userId, startTime, endTime, 10);
+      console.log('用户设备数据查询结果:', data ? data.length : 0, '条');
       
-      if (!data || data.length === 0) {
-        // 如果没有数据，返回空数据（步数为0）
-        const defaultData = {
-          heart_rate: null, // 没有心率数据
-          steps: 0, // 步数为0，不是随机值
-          blood_oxygen: null,
-          body_temperature: null,
-          blood_pressure: null,
-          blood_sugar: null,
-          timestamp: new Date().toISOString()
-        };
-        return res.json({ success: true, data: defaultData });
+      // 合并最近的数据（因为BLE数据可能分散在多个记录中）
+      let mergedData = {
+        heart_rate: null,
+        steps: null,
+        blood_oxygen: null,
+        body_temperature: null,
+        blood_pressure_systolic: null,
+        blood_pressure_diastolic: null,
+        blood_sugar: null,
+        record_time: null
+      };
+      
+      if (data && data.length > 0) {
+        // 从最近的记录开始合并数据
+        for (const record of data) {
+          if (record.heart_rate && !mergedData.heart_rate) mergedData.heart_rate = record.heart_rate;
+          if (record.steps && !mergedData.steps) mergedData.steps = record.steps;
+          if (record.blood_oxygen && !mergedData.blood_oxygen) mergedData.blood_oxygen = record.blood_oxygen;
+          if (record.body_temperature && !mergedData.body_temperature) mergedData.body_temperature = record.body_temperature;
+          if (record.blood_pressure_systolic && !mergedData.blood_pressure_systolic) mergedData.blood_pressure_systolic = record.blood_pressure_systolic;
+          if (record.blood_pressure_diastolic && !mergedData.blood_pressure_diastolic) mergedData.blood_pressure_diastolic = record.blood_pressure_diastolic;
+          if (record.blood_sugar && !mergedData.blood_sugar) mergedData.blood_sugar = record.blood_sugar;
+          if (record.record_time && !mergedData.record_time) mergedData.record_time = record.record_time;
+        }
       }
       
-      // 获取最新数据
-      const latestData = data[0];
+      // 如果合并后仍然没有数据，尝试直接查询设备数据（使用用户的设备ID）
+      if (!mergedData.heart_rate && !mergedData.blood_oxygen && !mergedData.body_temperature) {
+        console.log('用户设备无数据，尝试直接查询设备数据...');
+        
+        // 获取用户的设备ID
+        const pool = require('../index').pool;
+        const [userRows] = await pool.execute('SELECT device_id FROM users WHERE id = ?', [userId]);
+        
+        if (userRows.length > 0 && userRows[0].device_id) {
+          const deviceId = userRows[0].device_id;
+          console.log('用户设备ID:', deviceId);
+          
+          // 直接查询设备的最新数据
+          const [deviceRows] = await pool.execute(
+            'SELECT * FROM device_data WHERE device_id = ? ORDER BY record_time DESC LIMIT 10',
+            [deviceId]
+          );
+          
+          if (deviceRows.length > 0) {
+            console.log('找到设备数据:', deviceRows.length, '条');
+            // 合并数据
+            for (const record of deviceRows) {
+              if (record.heart_rate && !mergedData.heart_rate) mergedData.heart_rate = record.heart_rate;
+              if (record.steps && !mergedData.steps) mergedData.steps = record.steps;
+              if (record.blood_oxygen && !mergedData.blood_oxygen) mergedData.blood_oxygen = record.blood_oxygen;
+              if (record.body_temperature && !mergedData.body_temperature) mergedData.body_temperature = record.body_temperature;
+              if (record.blood_pressure_systolic && !mergedData.blood_pressure_systolic) mergedData.blood_pressure_systolic = record.blood_pressure_systolic;
+              if (record.blood_pressure_diastolic && !mergedData.blood_pressure_diastolic) mergedData.blood_pressure_diastolic = record.blood_pressure_diastolic;
+              if (record.blood_sugar && !mergedData.blood_sugar) mergedData.blood_sugar = record.blood_sugar;
+              if (record.record_time && !mergedData.record_time) mergedData.record_time = record.record_time;
+            }
+          }
+        }
+      }
       
-      // 直接返回数据库中的数据，不生成模拟数据
-      // 如果数据库中没有某些字段，返回null或默认值
-      // 强制步数为0，确保不会显示随机值
+      console.log('合并后的数据:', mergedData);
+      
+      // 返回数据库中的真实BLE数据
       const responseData = {
-        heart_rate: latestData.heart_rate || null,
-        steps: 0, // 强制步数为0，不显示数据库中的值
-        blood_oxygen: latestData.blood_oxygen || null,
-        body_temperature: latestData.body_temperature || null,
-        blood_pressure: latestData.blood_pressure || null,
-        blood_sugar: latestData.blood_sugar || null,
-        timestamp: latestData.timestamp || new Date().toISOString()
+        heart_rate: mergedData.heart_rate || null,
+        steps: mergedData.steps !== undefined && mergedData.steps !== null ? mergedData.steps : null,
+        blood_oxygen: mergedData.blood_oxygen || null,
+        body_temperature: mergedData.body_temperature || null,
+        blood_pressure: mergedData.blood_pressure_systolic && mergedData.blood_pressure_diastolic 
+          ? JSON.stringify({ 
+              systolic: mergedData.blood_pressure_systolic, 
+              diastolic: mergedData.blood_pressure_diastolic 
+            })
+          : null,
+        blood_sugar: mergedData.blood_sugar || null,
+        timestamp: mergedData.record_time || new Date().toISOString()
       };
       
       // 前端期望的数据结构是 { success: true, data: ... }
       res.json({ success: true, data: responseData });
     } catch (error) {
+      console.error('获取实时数据失败:', error);
       res.status(500).json({ message: '获取实时数据失败', error: error.message });
     }
   }
@@ -463,7 +565,7 @@ class DeviceDataController {
   }
   
   // 辅助方法：识别健康风险
-  static identifyHealthRisks(avgHeartRate, avgBloodOxygen, avgBodyTemperature, fatigueLevel) {
+  static identifyHealthRisks(avgHeartRate, avgBloodOxygen, avgBodyTemperature) {
     const risks = [];
     
     if (avgHeartRate > 100) {
@@ -482,10 +584,6 @@ class DeviceDataController {
       risks.push({ type: '体温异常', level: '中', description: '体温持续偏高，可能存在感染风险' });
     } else if (avgBodyTemperature < 35.5) {
       risks.push({ type: '体温异常', level: '中', description: '体温持续偏低，注意保暖和能量摄入' });
-    }
-    
-    if (fatigueLevel > 80) {
-      risks.push({ type: '过度疲劳', level: '中', description: '长期处于高疲劳状态，可能影响免疫力和健康' });
     }
     
     return risks;
@@ -531,87 +629,136 @@ class DeviceDataController {
     return '需改善';
   }
   
-  // 生成班级健康报告
-  static generateClassHealthReport(classData) {
-    if (classData.length === 0) {
-      return {
-        totalStudents: 0,
-        activeStudents: 0,
-        avgHeartRate: 0,
-        avgSteps: 0,
-        avgBloodOxygen: 0,
-        avgExerciseLoad: 0,
-        avgFatigueLevel: 0,
-        avgRecoveryLevel: 0,
-        avgHealthScore: 0,
-        abnormalStudents: 0,
-        studentHealthGrades: {
-          excellent: 0,
-          good: 0,
-          average: 0,
-          pass: 0,
-          poor: 0
+  // 获取所有设备数据（管理员用）
+  static async getAllDeviceData(req, res) {
+    try {
+      const { page = 1, limit = 50, deviceId, startTime, endTime } = req.query;
+      const offset = (page - 1) * limit;
+      
+      const pool = require('../index').pool;
+      if (!pool) {
+        return res.status(500).json({ message: '数据库连接池未就绪' });
+      }
+      
+      // 构建查询条件
+      let whereClause = 'WHERE 1=1';
+      const params = [];
+      
+      if (deviceId) {
+        whereClause += ' AND device_id LIKE ?';
+        params.push(`%${deviceId}%`);
+      }
+      
+      if (startTime) {
+        whereClause += ' AND record_time >= ?';
+        params.push(startTime);
+      }
+      
+      if (endTime) {
+        whereClause += ' AND record_time <= ?';
+        params.push(endTime);
+      }
+      
+      // 查询数据
+      const [rows] = await pool.execute(
+        `SELECT * FROM device_data ${whereClause} ORDER BY record_time DESC LIMIT ? OFFSET ?`,
+        [...params, parseInt(limit), offset]
+      );
+      
+      // 查询总数
+      const [countRows] = await pool.execute(
+        `SELECT COUNT(*) as total FROM device_data ${whereClause}`,
+        params
+      );
+      
+      const total = countRows[0].total;
+      
+      // 格式化数据
+      const formattedData = rows.map(row => ({
+        id: row.id,
+        device_id: row.device_id,
+        student_id: row.student_id,
+        heart_rate: row.heart_rate,
+        steps: row.steps,
+        blood_oxygen: row.blood_oxygen,
+        body_temperature: row.body_temperature,
+        blood_pressure_systolic: row.blood_pressure_systolic,
+        blood_pressure_diastolic: row.blood_pressure_diastolic,
+        blood_sugar: row.blood_sugar,
+        fatigue_level: row.fatigue_level,
+        exercise_load: row.exercise_load,
+        aerobic_stress: row.aerobic_stress,
+        anaerobic_stress: row.anaerobic_stress,
+        recovery_level: row.recovery_level,
+        record_time: row.record_time,
+        created_at: row.created_at
+      }));
+      
+      res.json({
+        success: true,
+        data: formattedData,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / limit)
         }
-      };
+      });
+    } catch (error) {
+      console.error('获取所有设备数据失败:', error);
+      res.status(500).json({ message: '获取设备数据失败', error: error.message });
     }
-    
-    // 计算班级统计数据
-    const totalStudents = classData.length;
-    let totalHeartRate = 0;
-    let totalSteps = 0;
-    let totalBloodOxygen = 0;
-    let totalExerciseLoad = 0;
-    let totalFatigueLevel = 0;
-    let totalRecoveryLevel = 0;
-    let totalHealthScore = 0;
-    let abnormalStudents = 0;
-    
-    const healthGrades = { excellent: 0, good: 0, average: 0, pass: 0, poor: 0 };
-    
-    classData.forEach(({ data }) => {
-      const report = DeviceDataController.generateHealthReport(data);
-      totalHeartRate += report.healthMetrics.heartRate.average;
-      totalSteps += report.healthMetrics.steps.total;
-      totalBloodOxygen += report.healthMetrics.bloodOxygen.average;
-      totalExerciseLoad += report.exerciseMetrics.exerciseLoad;
-      totalFatigueLevel += report.exerciseMetrics.fatigueLevel;
-      totalRecoveryLevel += report.exerciseMetrics.recoveryLevel;
-      totalHealthScore += report.healthScore.score;
-      
-      // 统计异常学生
-      if (report.healthMetrics.heartRate.average > 90 || 
-          report.healthMetrics.bloodOxygen.average < 95 || 
-          report.exerciseMetrics.fatigueLevel > 80) {
-        abnormalStudents++;
+  }
+
+  // 获取设备数据统计信息
+  static async getDeviceDataStats(req, res) {
+    try {
+      const pool = require('../index').pool;
+      if (!pool) {
+        return res.status(500).json({ message: '数据库连接池未就绪' });
       }
       
-      // 统计健康等级
-      switch (report.healthScore.grade) {
-        case '优秀': healthGrades.excellent++;
-          break;
-        case '良好': healthGrades.good++;
-          break;
-        case '一般': healthGrades.average++;
-          break;
-        case '及格': healthGrades.pass++;
-          break;
-        default: healthGrades.poor++;
-      }
-    });
-    
-    return {
-      totalStudents,
-      activeStudents: classData.length,
-      avgHeartRate: totalHeartRate / totalStudents,
-      avgSteps: totalSteps / totalStudents,
-      avgBloodOxygen: totalBloodOxygen / totalStudents,
-      avgExerciseLoad: totalExerciseLoad / totalStudents,
-      avgFatigueLevel: totalFatigueLevel / totalStudents,
-      avgRecoveryLevel: totalRecoveryLevel / totalStudents,
-      avgHealthScore: totalHealthScore / totalStudents,
-      abnormalStudents,
-      studentHealthGrades: healthGrades
-    };
+      // 查询总记录数
+      const [totalRows] = await pool.execute('SELECT COUNT(*) as total FROM device_data');
+      const totalRecords = totalRows[0].total;
+      
+      // 查询设备数量
+      const [deviceRows] = await pool.execute('SELECT COUNT(DISTINCT device_id) as device_count FROM device_data');
+      const deviceCount = deviceRows[0].device_count;
+      
+      // 查询最新记录时间
+      const [latestRows] = await pool.execute('SELECT MAX(record_time) as latest_time FROM device_data');
+      const latestTime = latestRows[0].latest_time;
+      
+      // 查询最早记录时间
+      const [earliestRows] = await pool.execute('SELECT MIN(record_time) as earliest_time FROM device_data');
+      const earliestTime = earliestRows[0].earliest_time;
+      
+      // 查询数据分布
+      const [distributionRows] = await pool.execute(`
+        SELECT 
+          DATE(record_time) as date,
+          COUNT(*) as count
+        FROM device_data
+        GROUP BY DATE(record_time)
+        ORDER BY date DESC
+        LIMIT 30
+      `);
+      
+      res.json({
+        success: true,
+        stats: {
+          totalRecords,
+          deviceCount,
+          latestTime,
+          earliestTime,
+          dataDistribution: distributionRows
+        }
+      });
+    } catch (error) {
+      console.error('获取设备数据统计失败:', error);
+      res.status(500).json({ message: '获取设备数据统计失败', error: error.message });
+    }
   }
 }
 

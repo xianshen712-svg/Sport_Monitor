@@ -6,19 +6,19 @@
       <p>欢迎回来，{{ userInfo.name }} | {{ currentDate }}</p>
     </el-card>
     
-    <!-- 系统概览 -->
-    <el-row :gutter="20" class="overview-section">
+    <!-- 顶部数据概览区 -->
+    <el-row :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :md="12" :lg="6">
-        <el-card shadow="hover" class="overview-card">
-          <div class="overview-content">
-            <div class="overview-icon primary">
-              <i class="el-icon-user"></i>
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon online">
+              <i class="el-icon-monitor"></i>
             </div>
-            <div class="overview-info">
-              <div class="overview-title">总用户数</div>
-              <div class="overview-value">{{ overviewStats.totalUsers }}</div>
-              <div class="overview-subtitle">
-                <span class="text-success">+{{ overviewStats.newUsersToday }}</span> 今日新增
+            <div class="stat-info">
+              <div class="stat-title">在线设备数</div>
+              <div class="stat-value">{{ onlineCount }}</div>
+              <div class="stat-subtitle">
+                设备总数：{{ totalDevices }}
               </div>
             </div>
           </div>
@@ -26,16 +26,16 @@
       </el-col>
       
       <el-col :xs="24" :sm="12" :md="12" :lg="6">
-        <el-card shadow="hover" class="overview-card">
-          <div class="overview-content">
-            <div class="overview-icon success">
-              <i class="el-icon-s-cooperation"></i>
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon heart">
+              <i class="el-icon-medal"></i>
             </div>
-            <div class="overview-info">
-              <div class="overview-title">设备总数</div>
-              <div class="overview-value">{{ overviewStats.totalDevices }}</div>
-              <div class="overview-subtitle">
-                <span class="text-danger">{{ overviewStats.offlineDevices }}</span> 设备离线
+            <div class="stat-info">
+              <div class="stat-title">平均心率</div>
+              <div class="stat-value">{{ avgHeartRate }} <span class="unit">bpm</span></div>
+              <div class="stat-subtitle">
+                正常范围：60-120 bpm
               </div>
             </div>
           </div>
@@ -43,16 +43,16 @@
       </el-col>
       
       <el-col :xs="24" :sm="12" :md="12" :lg="6">
-        <el-card shadow="hover" class="overview-card">
-          <div class="overview-content">
-            <div class="overview-icon warning">
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon data">
               <i class="el-icon-data-line"></i>
             </div>
-            <div class="overview-info">
-              <div class="overview-title">今日数据量</div>
-              <div class="overview-value">{{ overviewStats.todayDataCount }}</div>
-              <div class="overview-subtitle">
-                数据质量：<span class="text-success">{{ overviewStats.dataQualityRate }}%</span>
+            <div class="stat-info">
+              <div class="stat-title">今日数据量</div>
+              <div class="stat-value">{{ todayDataCount }}</div>
+              <div class="stat-subtitle">
+                条设备数据记录
               </div>
             </div>
           </div>
@@ -60,22 +60,71 @@
       </el-col>
       
       <el-col :xs="24" :sm="12" :md="12" :lg="6">
-        <el-card shadow="hover" class="overview-card">
-          <div class="overview-content">
-            <div class="overview-icon danger">
+        <el-card shadow="hover" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon warning">
               <i class="el-icon-warning"></i>
             </div>
-            <div class="overview-info">
-              <div class="overview-title">预警总数</div>
-              <div class="overview-value">{{ overviewStats.totalAlerts }}</div>
-              <div class="overview-subtitle">
-                <span class="text-danger">{{ overviewStats.unhandledAlerts }}</span> 未处理
+            <div class="stat-info">
+              <div class="stat-title">异常告警</div>
+              <div class="stat-value warning">{{ warningCount }}</div>
+              <div class="stat-subtitle">
+                心率异常设备
               </div>
             </div>
           </div>
         </el-card>
       </el-col>
     </el-row>
+    
+    <!-- 实时设备监控 -->
+    <el-card shadow="hover" class="monitor-card" style="margin-top:20px">
+      <template #header>
+        <span>实时设备监控</span>
+        <el-button type="primary" size="small" @click="fetchData">
+          <i class="el-icon-refresh"></i> 刷新
+        </el-button>
+      </template>
+      <el-table 
+        :data="deviceList" 
+        style="width:100%" 
+        height="400"
+        v-loading="loading"
+      >
+        <el-table-column prop="mac" label="设备地址" width="180" />
+        <el-table-column prop="student_name" label="学生姓名" width="120">
+          <template #default="{ row }">
+            {{ row.student_name || '未绑定' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="heartRate" label="实时心率" width="120">
+          <template #default="{ row }">
+            <span :class="{ 'abnormal': row.heartRate && (row.heartRate < 60 || row.heartRate > 120) }">
+              {{ row.heartRate || '--' }} <span class="unit">bpm</span>
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'online' ? 'success' : 'danger'">
+              {{ row.status === 'online' ? '在线' : '离线' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="lastUpdateTime" label="最后更新" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.lastUpdateTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button type="text" size="small" @click="viewDeviceDetail(row.id)">
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
     
     <!-- 数据统计图表 -->
     <el-row :gutter="20" class="charts-section">
@@ -204,17 +253,14 @@ export default {
       },
       currentDate: '',
       timeRange: '7',
-      // 系统概览数据
-      overviewStats: {
-        totalUsers: 523,
-        newUsersToday: 12,
-        totalDevices: 500,
-        offlineDevices: 15,
-        todayDataCount: 12580,
-        dataQualityRate: 98.5,
-        totalAlerts: 23,
-        unhandledAlerts: 8
-      },
+      // 实时监控数据
+      onlineCount: 0,
+      avgHeartRate: 0,
+      todayDataCount: 0,
+      warningCount: 0,
+      totalDevices: 0,
+      deviceList: [],
+      loading: false,
       // 系统日志
       systemLogs: [
         { time: '2023-11-01 14:30:25', content: '用户Admin001登录系统', type: 'primary' },
@@ -234,7 +280,9 @@ export default {
       // 图表实例
       userGrowthChart: null,
       deviceStatusChart: null,
-      userRoleChart: null
+      userRoleChart: null,
+      // 自动刷新定时器
+      autoRefreshInterval: null
     };
   },
   mounted() {
@@ -246,6 +294,12 @@ export default {
     
     // 开始定时刷新数据
     this.startAutoRefresh();
+    
+    // 初始化检查设备预警
+    this.checkDeviceAlerts();
+    
+    // 首次加载数据
+    this.fetchData();
   },
   beforeDestroy() {
     // 销毁图表实例
@@ -280,6 +334,112 @@ export default {
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
       this.currentDate = `${year}-${month}-${day} ${hours}:${minutes}`;
+    },
+    
+    // 获取数据
+    async fetchData() {
+      this.loading = true;
+      try {
+        // 1. 获取设备列表
+        const deviceRes = await this.$axios.get('/api/devices');
+        const devices = deviceRes.data.data || [];
+        this.totalDevices = devices.length;
+        
+        // 2. 获取设备最新数据
+        const dataRes = await this.$axios.get('/api/device-data/latest');
+        const latestData = dataRes.data.data || [];
+        
+        // 3. 合并数据
+        this.deviceList = devices.map(device => {
+          const deviceData = latestData.find(d => d.device_id === device.mac);
+          return {
+            ...device,
+            heartRate: deviceData?.heart_rate || null,
+            lastUpdateTime: deviceData?.record_time || null
+          };
+        });
+        
+        // 4. 计算统计数据
+        this.onlineCount = this.deviceList.filter(d => d.status === 'online').length;
+        
+        const validHeartRates = this.deviceList
+          .map(d => d.heartRate)
+          .filter(rate => rate !== null && rate !== undefined);
+        
+        if (validHeartRates.length > 0) {
+          const sum = validHeartRates.reduce((a, b) => a + b, 0);
+          this.avgHeartRate = (sum / validHeartRates.length).toFixed(1);
+        } else {
+          this.avgHeartRate = 0;
+        }
+        
+        this.warningCount = this.deviceList.filter(d => 
+          d.heartRate && (d.heartRate < 60 || d.heartRate > 120)
+        ).length;
+        
+        // 5. 获取今日数据量
+        const today = new Date().toISOString().split('T')[0];
+        const countRes = await this.$axios.get(`/api/device-data/count?date=${today}`);
+        this.todayDataCount = countRes.data.count || 0;
+        
+        this.$message.success('数据刷新成功');
+      } catch (error) {
+        console.error('获取数据失败:', error);
+        this.$message.error('获取数据失败');
+        
+        // 使用模拟数据
+        this.useMockData();
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // 使用模拟数据
+    useMockData() {
+      // 模拟设备数据
+      this.deviceList = [
+        { id: 1, mac: '00:11:22:33:44:55', student_name: '曹睿焜', status: 'online', heartRate: 78, lastUpdateTime: new Date().toISOString() },
+        { id: 2, mac: '00:11:22:33:44:56', student_name: '张小明', status: 'online', heartRate: 85, lastUpdateTime: new Date().toISOString() },
+        { id: 3, mac: '00:11:22:33:44:57', student_name: '李小红', status: 'offline', heartRate: null, lastUpdateTime: null },
+        { id: 4, mac: '00:11:22:33:44:58', student_name: '王大明', status: 'online', heartRate: 125, lastUpdateTime: new Date().toISOString() },
+        { id: 5, mac: '00:11:22:33:44:59', student_name: null, status: 'online', heartRate: 92, lastUpdateTime: new Date().toISOString() }
+      ];
+      
+      this.totalDevices = this.deviceList.length;
+      this.onlineCount = this.deviceList.filter(d => d.status === 'online').length;
+      
+      const validHeartRates = this.deviceList
+        .map(d => d.heartRate)
+        .filter(rate => rate !== null && rate !== undefined);
+      
+      if (validHeartRates.length > 0) {
+        const sum = validHeartRates.reduce((a, b) => a + b, 0);
+        this.avgHeartRate = (sum / validHeartRates.length).toFixed(1);
+      } else {
+        this.avgHeartRate = 0;
+      }
+      
+      this.warningCount = this.deviceList.filter(d => 
+        d.heartRate && (d.heartRate < 60 || d.heartRate > 120)
+      ).length;
+      
+      this.todayDataCount = 12580;
+    },
+    
+    // 格式化日期
+    formatDate(dateString) {
+      if (!dateString) return '--';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleString('zh-CN');
+      } catch (error) {
+        return dateString;
+      }
+    },
+    
+    // 查看设备详情
+    viewDeviceDetail(deviceId) {
+      this.$router.push(`/admin/device-manage`);
     },
     
     // 初始化图表
@@ -502,11 +662,8 @@ export default {
     // 开始定时刷新数据
     startAutoRefresh() {
       this.autoRefreshInterval = setInterval(() => {
-        // 模拟数据更新
-        this.overviewStats.newUsersToday = Math.floor(Math.random() * 20) + 5;
-        this.overviewStats.offlineDevices = Math.floor(Math.random() * 20) + 5;
-        this.overviewStats.todayDataCount += Math.floor(Math.random() * 1000) + 500;
-        this.overviewStats.unhandledAlerts = Math.floor(Math.random() * 10) + 1;
+        // 自动刷新数据
+        this.fetchData();
         
         // 更新当前时间
         this.setCurrentDate();

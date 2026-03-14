@@ -15,7 +15,7 @@ export default defineConfig({
     host: '0.0.0.0', // 监听所有地址，包括IPv4和IPv6
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3000',
         changeOrigin: true
       }
     }

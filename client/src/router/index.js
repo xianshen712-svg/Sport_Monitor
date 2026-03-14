@@ -41,6 +41,11 @@ const routes = [
         path: 'profile',
         name: 'StudentProfile',
         component: () => import('../pages/student/Profile.vue')
+      },
+      {
+        path: 'multi-heart-monitor',
+        name: 'MultiHeartMonitor',
+        component: () => import('../pages/student/MultiHeartMonitor.vue')
       }
     ]
   },
@@ -106,11 +111,25 @@ const routes = [
         component: () => import('../pages/admin/Devices.vue')
       },
       {
+        path: 'device-manage',
+        name: 'AdminDeviceManage',
+        component: () => import('../pages/admin/DeviceManage.vue')
+      },
+      {
         path: 'settings',
         name: 'AdminSettings',
         component: () => import('../pages/admin/Settings.vue')
-      }
-      ,
+      },
+      {
+        path: 'device-monitor',
+        name: 'AdminDeviceMonitor',
+        component: () => import('../pages/admin/DeviceMonitor.vue')
+      },
+      {
+        path: 'data-storage',
+        name: 'AdminDataStorage',
+        component: () => import('../pages/admin/DataStorage.vue')
+      },
       {
         // 兼容旧路径 /admin/system-settings -> 重定向到 /admin/settings
         path: 'system-settings',

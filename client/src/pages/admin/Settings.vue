@@ -637,7 +637,7 @@ export default {
     // 加载 MQTT 配置
     async loadMQTTConfig() {
       try {
-        const res = await request.get('/mqtt/config');
+        const res = await request.get('/api/mqtt/config');
         if (res.data && res.data.success) {
           this.mqttConfig = { ...this.mqttConfig, ...res.data.data };
         }
@@ -650,7 +650,7 @@ export default {
     // 保存 MQTT 配置
     async saveMQTTConfig() {
       try {
-        await request.post('/mqtt/config', this.mqttConfig);
+        await request.post('/api/mqtt/config', this.mqttConfig);
         this.$message.success('MQTT 配置已保存');
       } catch (err) {
         console.error('保存MQTT配置失败', err);
@@ -661,7 +661,7 @@ export default {
     // 测试 MQTT 连接
     async testMQTTConfig() {
       try {
-        const res = await request.post('/mqtt/test', this.mqttConfig);
+        const res = await request.post('/api/mqtt/test', this.mqttConfig);
         if (res.data && res.data.success) {
           this.$message.success(res.data.message || '测试连接成功');
         } else {

@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
 修复后的KCT手表心率数据获取工具
-使用正确的数据解析算法
+使用正确的数据解析算法 + MQTT数据上传
 
 基于实际数据分析：
 - 数据格式: 21字节固定长度
 - 心率值位置: 倒数第3个字节
 - 心率值范围: 40-200 bpm
+
+新增功能：
+- 自动将心率数据通过MQTT发送到后端服务器
+- 支持实时数据推送到前端显示
 """
 
 import asyncio
@@ -17,12 +21,27 @@ from datetime import datetime
 from bleak import BleakClient, BleakScanner
 from bleak.exc import BleakError
 
+# 导入MQTT发布器
+try:
+    from mqtt_publisher import MQTTPublisher
+    MQTT_ENABLED = True
+except ImportError:
+    MQTT_ENABLED = False
+    print("⚠️  MQTT功能未启用（mqtt_publisher模块未找到或paho-mqtt未安装）")
+
 # 目标设备MAC地址
 TARGET_MAC = "E5:BF:3C:6E:3F:01"
 TARGET_NAME = "CC30"
 
+# MQTT配置
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
+
 # 数据存储
 heart_rate_data = []
+
+# MQTT发布器实例
+mqtt_publisher = None
 
 def parse_kct_heart_rate_fixed(data):
     """
@@ -77,7 +96,9 @@ def parse_kct_heart_rate_fixed(data):
     return None
 
 def save_heart_rate(heart_rate):
-    """保存心率数据"""
+    """保存心率数据并发送到MQTT服务器"""
+    global mqtt_publisher
+    
     if heart_rate is None:
         return
     
@@ -101,6 +122,10 @@ def save_heart_rate(heart_rate):
         f.write(f"{timestamp},{heart_rate},{time.time()}\n")
     
     print(f"💓 心率: {heart_rate} bpm ({timestamp})")
+    
+    # 发送到MQTT服务器
+    if MQTT_ENABLED and mqtt_publisher and mqtt_publisher.is_connected:
+        mqtt_publisher.publish_heart_rate(TARGET_MAC, heart_rate)
 
 def notification_handler(sender, data):
     """处理BLE通知"""
@@ -339,12 +364,44 @@ async def main():
     print("5. 查看数据: 查看生成的JSON/CSV文件")
     print("=" * 60)
 
+def init_mqtt():
+    """初始化MQTT连接"""
+    global mqtt_publisher
+    
+    if not MQTT_ENABLED:
+        print("⚠️  MQTT功能未启用，数据将仅保存到本地文件")
+        return False
+    
+    print(f"\n🔌 正在连接MQTT服务器 {MQTT_BROKER}:{MQTT_PORT}...")
+    mqtt_publisher = MQTTPublisher(MQTT_BROKER, MQTT_PORT)
+    
+    if mqtt_publisher.connect():
+        print("✅ MQTT连接成功！数据将实时发送到后端服务器")
+        return True
+    else:
+        print("⚠️  MQTT连接失败，数据将仅保存到本地文件")
+        print("   请确保MQTT服务器正在运行: node simple_mqtt_broker.js")
+        return False
+
+
+def cleanup_mqtt():
+    """清理MQTT连接"""
+    global mqtt_publisher
+    
+    if mqtt_publisher:
+        mqtt_publisher.disconnect()
+        mqtt_publisher = None
+
+
 if __name__ == "__main__":
     # 清空旧数据文件
     try:
         open("fixed_heart_rate_log.csv", "w").close()
     except:
         pass
+    
+    # 初始化MQTT
+    mqtt_connected = init_mqtt()
     
     # 运行主程序
     try:
@@ -353,3 +410,9 @@ if __name__ == "__main__":
         print("\n👋 程序已终止")
     except Exception as e:
         print(f"💥 程序错误: {e}")
+    finally:
+        # 清理MQTT连接
+        cleanup_mqtt()
+        
+        if mqtt_connected:
+            print("📊 MQTT连接已关闭")
