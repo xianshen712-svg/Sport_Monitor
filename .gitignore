@@ -1,0 +1,264 @@
+# ================================
+# Dependencies - 依赖目录
+# ================================
+node_modules/
+**/node_modules/
+
+# ================================
+# Package lock files - 包锁定文件
+# (可选择保留，但通常 package-lock.json 较大)
+# ================================
+package-lock.json
+**/package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ================================
+# Production builds - 构建输出
+# ================================
+dist/
+**/dist/
+build/
+**/build/
+.nuxt/
+.next/
+.output/
+.vite/
+
+# ================================
+# Environment variables - 环境变量
+# ================================
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ================================
+# Logs - 日志文件
+# ================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# ================================
+# Runtime data - 运行时数据
+# ================================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ================================
+# Testing - 测试相关
+# ================================
+coverage/
+.nyc_output/
+*.lcov
+.jest/
+jest-results/
+
+# ================================
+# Temporary files - 临时文件
+# ================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# ================================
+# OS generated files - 系统生成文件
+# ================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Linux
+*~
+.directory
+
+# ================================
+# Python - Python 相关
+# ================================
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Python virtual environments
+venv/
+ENV/
+env/
+.venv/
+.env/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# ================================
+# Database files - 数据库文件
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+Database/*.db
+Database/*.sqlite
+Database/*.sqlite3
+
+# ================================
+# Data files - 数据文件 (生成的CSV/JSON)
+# ================================
+*.csv
+*.json
+!package.json
+!**/package.json
+!server/config/*.json
+!tsconfig.json
+!jsconfig.json
+!.vscode/*.json
+
+# ================================
+# Uploads and generated content - 上传和生成的内容
+# ================================
+uploads/
+**/uploads/
+public/uploads/
+
+# ================================
+# IDE and editor files - IDE 和编辑器文件
+# ================================
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# ================================
+# Cache directories - 缓存目录
+# ================================
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# ================================
+# Documentation generated - 生成的文档
+# ================================
+apidoc/
+docs/_build/
+site/
+
+# ================================
+# Miscellaneous - 其他
+# ================================
+*.local
+.turbo/
+.vercel/
+.netlify/
+
+# ================================
+# Project specific - 项目特定文件
+# ================================
+# BLE 工具生成的日志文件
+blood_oxygen_log.csv
+blood_oxygen_log.json
+BLE/*.csv
+BLE/*.json
+BLE/*.log
+
+# 前端实时显示目录（如果是生成的）
+Frontend实时显示/
+
+# 服务器临时文件
+server/uploads/
+server/public/uploads/
+server/tmp/
+server/temp/
+server/logs/
+
+# 客户端构建输出
+client/dist/
+client/.vite/
+client/node_modules/
+
+# 调试和测试脚本（可选）
+# check_database.js
+# start_server_debug.js
+
+# Redis dump
+dump.rdb

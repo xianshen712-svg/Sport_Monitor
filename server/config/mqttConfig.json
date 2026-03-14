@@ -1,0 +1,9 @@
+{
+  "broker": "mqtt://localhost:1883",
+  "username": "",
+  "password": "",
+  "clientId": "sport-monitor-server",
+  "topicPrefix": "sport/monitor/",
+  "reconnectPeriod": 5000,
+  "connectTimeout": 10000
+}
