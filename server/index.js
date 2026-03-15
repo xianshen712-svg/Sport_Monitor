@@ -565,12 +565,14 @@ const userRoutes = require('./routes/userRoutes');
 const deviceDataRoutes = require('./routes/deviceDataRoutes');
 const mqttRoutes = require('./routes/mqttRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
+const bleMonitorRoutes = require('./routes/bleMonitor');
 
 // 使用路由
 app.use('/api/users', userRoutes);
 app.use('/api/device-data', deviceDataRoutes);
 app.use('/api/mqtt', mqttRoutes);
 app.use('/api/devices', deviceRoutes);
+app.use('/api', bleMonitorRoutes);
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;

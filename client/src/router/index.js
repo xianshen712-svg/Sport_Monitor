@@ -111,6 +111,11 @@ const routes = [
         component: () => import('../pages/admin/Devices.vue')
       },
       {
+        path: 'devices/heart-rate',
+        name: 'AdminHeartRateMonitor',
+        component: () => import('../pages/admin/HeartRateMonitor.vue')
+      },
+      {
         path: 'device-monitor',
         name: 'AdminDeviceMonitor',
         component: () => import('../pages/admin/DeviceMonitor.vue')

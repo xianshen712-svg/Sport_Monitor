@@ -19,10 +19,20 @@
             <el-icon><User /></el-icon>
             <span>用户管理</span>
           </el-menu-item>
-          <el-menu-item index="/admin/devices">
-            <el-icon><Monitor /></el-icon>
-            <span>设备管理</span>
-          </el-menu-item>
+          <el-sub-menu index="device-menu">
+            <template #title>
+              <el-icon><Monitor /></el-icon>
+              <span>设备管理</span>
+            </template>
+            <el-menu-item index="/admin/devices">
+              <el-icon><List /></el-icon>
+              <span>设备列表</span>
+            </el-menu-item>
+            <el-menu-item index="/admin/devices/heart-rate">
+              <el-icon><Monitor /></el-icon>
+              <span>心率监测</span>
+            </el-menu-item>
+          </el-sub-menu>
           <el-menu-item index="/admin/health-data">
             <el-icon><FirstAidKit /></el-icon>
             <span>健康数据管理</span>
@@ -93,7 +103,8 @@ import {
   ArrowDown,
   FirstAidKit,
   Basketball,
-  Bell
+  Bell,
+  List
 } from '@element-plus/icons-vue'
 
 export default {
@@ -108,7 +119,8 @@ export default {
     ArrowDown,
     FirstAidKit,
     Basketball,
-    Bell
+    Bell,
+    List
   },
   setup() {
     const router = useRouter()
@@ -182,17 +194,65 @@ export default {
 }
 
 .el-menu-item {
-  color: rgba(255, 255, 255, 0.8);
+  color: white !important;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .el-menu-item:hover {
   background-color: #1890ff;
-  color: white;
+  color: white !important;
 }
 
 .el-menu-item.is-active {
   background-color: #1890ff;
-  color: white;
+  color: white !important;
+}
+
+.el-sub-menu__title {
+  white-space: nowrap;
+  overflow: visible;
+  color: white !important;
+}
+
+.el-sub-menu__title:hover {
+  background-color: #1890ff;
+  color: white !important;
+}
+
+/* 确保子菜单图标也使用白色 */
+.el-sub-menu__title .el-icon {
+  color: white !important;
+}
+
+.el-sub-menu__title:hover .el-icon {
+  color: white !important;
+}
+
+/* 确保子菜单标题文字使用白色 */
+.el-sub-menu__title span {
+  color: white !important;
+}
+
+.el-sub-menu__title:hover span {
+  color: white !important;
+}
+
+/* 子菜单项背景色改为黑色，与其他菜单项一致 */
+.el-menu--vertical {
+  background-color: #001529 !important;
+}
+
+.el-menu--vertical .el-menu-item {
+  background-color: #001529 !important;
+}
+
+.el-menu--vertical .el-menu-item:hover {
+  background-color: #1890ff !important;
+}
+
+.el-menu--vertical .el-menu-item.is-active {
+  background-color: #1890ff !important;
 }
 
 .header {
