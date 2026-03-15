@@ -16,4 +16,12 @@ router.get('/device/:deviceId/history', authenticateToken, authorizeRole(['admin
 router.get('/class/:className/data', authenticateToken, authorizeRole(['admin', 'teacher']), DeviceDataController.getClassDeviceData);
 router.get('/class/:className/report', authenticateToken, authorizeRole(['admin', 'teacher']), DeviceDataController.getClassHealthReport);
 
+// 仪表盘相关路由（管理员权限）
+router.get('/latest', authenticateToken, authorizeRole(['admin']), DeviceDataController.getLatestDeviceData);
+router.get('/stats', authenticateToken, authorizeRole(['admin']), DeviceDataController.getDashboardStats);
+
+// 数据管理相关路由（管理员权限）
+router.get('/all', authenticateToken, authorizeRole(['admin']), DeviceDataController.getAllDeviceData);
+router.get('/data-stats', authenticateToken, authorizeRole(['admin']), DeviceDataController.getDeviceDataStats);
+
 module.exports = router;

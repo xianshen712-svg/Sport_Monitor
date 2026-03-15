@@ -1,677 +1,398 @@
 <template>
-  <div class="admin-users">
-    <el-card shadow="hover" class="page-header">
+  <div class="admin-users-page">
+    <!-- 头部 -->
+    <div class="page-header-card">
       <h2>用户管理</h2>
       <p>管理系统内所有用户信息</p>
-    </el-card>
-    
-    <!-- 搜索和筛选 -->
-    <el-card shadow="hover" class="search-card">
-      <div class="search-container">
+    </div>
+
+    <!-- 搜索栏 -->
+    <el-card shadow="never" class="search-panel">
+      <div class="search-row">
         <el-input
-          v-model="searchQuery"
-          placeholder="搜索用户（用户名、姓名、学号/工号）"
-          style="width: 300px; margin-right: 10px;"
+          v-model="searchKey"
+          placeholder="搜索：手机号/姓名/用户ID/设备MAC"
+          style="width: 320px"
           prefix-icon="el-icon-search"
-        ></el-input>
-        
-        <el-select
-          v-model="userTypeFilter"
-          placeholder="用户类型"
-          style="width: 120px; margin-right: 10px;"
-        >
-          <el-option label="全部" value=""></el-option>
-          <el-option label="学生" value="student"></el-option>
-          <el-option label="教师" value="teacher"></el-option>
-          <el-option label="管理员" value="admin"></el-option>
+          clearable
+        />
+
+        <el-select v-model="filter.type" placeholder="用户类型" style="width:130px">
+          <el-option label="全部" value="" />
+          <el-option label="学生" value="student" />
+          <el-option label="教师" value="teacher" />
+          <el-option label="管理员" value="admin" />
         </el-select>
-        
-        <el-select
-          v-model="statusFilter"
-          placeholder="状态"
-          style="width: 120px; margin-right: 10px;"
-        >
-          <el-option label="全部" value=""></el-option>
-          <el-option label="启用" value="active"></el-option>
-          <el-option label="禁用" value="inactive"></el-option>
+
+        <el-select v-model="filter.status" placeholder="账号状态" style="width:130px">
+          <el-option label="全部" value="" />
+          <el-option label="正常" value="active" />
+          <el-option label="封禁" value="inactive" />
         </el-select>
-        
-        <el-button type="primary" @click="searchUsers">
-          <i class="el-icon-search"></i> 搜索
-        </el-button>
-        
-        <el-button @click="resetFilters">
-          <i class="el-icon-refresh"></i> 重置
-        </el-button>
-        
-        <div class="search-actions">
-          <el-button type="primary" @click="showAddUserDialog">
-            <i class="el-icon-plus"></i> 新增用户
-          </el-button>
-          <el-button @click="importUsers">
-            <i class="el-icon-upload2"></i> 导入用户
-          </el-button>
-          <el-button @click="exportUsers">
-            <i class="el-icon-download"></i> 导出用户
-          </el-button>
+
+        <el-button type="primary" @click="doSearch">搜索</el-button>
+        <el-button @click="resetSearch">重置</el-button>
+
+        <div class="right-actions">
+          <el-button type="primary" icon="el-icon-plus" @click="openAddDialog">新增用户</el-button>
+          <el-button type="success" icon="el-icon-download" @click="exportAllUsers">导出Excel</el-button>
+          <el-button type="warning" icon="el-icon-message" @click="openPushDialog">批量推送</el-button>
         </div>
       </div>
     </el-card>
-    
+
+    <!-- 批量操作栏 -->
+    <div class="batch-bar" v-if="selected.length > 0">
+      <span>已选 {{ selected.length }} 项</span>
+      <el-button type="success" size="small" @click="batchEnable">批量启用</el-button>
+      <el-button type="warning" size="small" @click="batchDisable">批量禁用</el-button>
+      <el-button type="danger" size="small" @click="batchDelete">批量删除</el-button>
+      <el-button type="primary" size="small" @click="exportSelected">导出所选</el-button>
+    </div>
+
     <!-- 用户列表 -->
-    <el-card shadow="hover" class="table-card">
+    <el-card shadow="never" class="table-panel">
       <el-table
-        :data="filteredUsers"
+        :data="userList"
         border
         stripe
-        style="width: 100%"
-        height="600"
-        @selection-change="handleSelectionChange"
+        height="620"
+        v-loading="loading"
+        @selection-change="handleSelect"
       >
-        <el-table-column type="selection" width="55" align="center"></el-table-column>
-        <el-table-column prop="userId" label="用户ID" width="120" align="center"></el-table-column>
-        <el-table-column prop="username" label="用户名" width="150" align="center"></el-table-column>
-        <el-table-column prop="name" label="姓名" width="120" align="center"></el-table-column>
-        <el-table-column prop="userType" label="用户类型" width="100" align="center">
-          <template v-slot="scope">
-            <el-tag :type="getUserTypeColor(scope.row.userType)">
-              {{ getUserTypeText(scope.row.userType) }}
+        <el-table-column type="selection" width="55" />
+
+        <el-table-column label="头像" width="70" align="center">
+          <template #default="{row}">
+            <el-avatar :src="row.avatar" size="small" />
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="userId" label="用户ID" width="110" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="phone" label="手机号" width="140" />
+        <el-table-column prop="userType" label="类型" width="90" align="center">
+          <template #default="{row}">
+            <el-tag :type="row.userType === 'student' ? 'primary' : row.userType === 'teacher' ? 'success' : 'warning'">
+              {{ row.userType === 'student' ? '学生' : row.userType === 'teacher' ? '教师' : '管理员' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="gender" label="性别" width="80" align="center">
-          <template v-slot="scope">
-            <el-tag type="info">{{ scope.row.gender }}</el-tag>
+
+        <el-table-column label="绑定设备" width="100" align="center">
+          <template #default="{row}">
+            {{ row.deviceCount }} 台
           </template>
         </el-table-column>
-        <el-table-column prop="classInfo" label="班级/部门" width="150" align="center"></el-table-column>
-        <el-table-column prop="phone" label="手机号码" width="150" align="center"></el-table-column>
-        <el-table-column prop="email" label="邮箱" width="200"></el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template v-slot="scope">
+
+        <el-table-column prop="createdAt" label="注册时间" width="180" />
+
+        <el-table-column label="状态" width="100" align="center">
+          <template #default="{row}">
             <el-switch
-              v-model="scope.row.status"
-              :active-value="'active'"
-              :inactive-value="'inactive'"
-              @change="handleStatusChange(scope.row)"
-            ></el-switch>
-            <span style="margin-left: 10px;">
-              <el-tag :type="scope.row.status === 'active' ? 'success' : 'warning'">
-                {{ scope.row.status === 'active' ? '启用' : '禁用' }}
-              </el-tag>
-            </span>
+              v-model="row.status"
+              active-value="active"
+              inactive-value="inactive"
+              @change="updateStatus(row)"
+            />
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="180" align="center"></el-table-column>
-        <el-table-column label="操作" width="180" align="center">
-          <template v-slot="scope">
-            <el-button type="primary" size="small" @click="viewUserDetail(scope.row.userId)">
-              <i class="el-icon-view"></i> 查看
-            </el-button>
-            <el-button type="info" size="small" @click="editUser(scope.row.userId)">
-              <i class="el-icon-edit"></i> 编辑
-            </el-button>
-            <el-button type="danger" size="small" @click="deleteUser(scope.row.userId)">
-              <i class="el-icon-delete"></i> 删除
-            </el-button>
+
+        <el-table-column label="操作" width="280" align="center">
+          <template #default="{row}">
+            <el-button type="text" @click="openDetail(row)">详情</el-button>
+            <el-button type="text" @click="openEdit(row)">编辑</el-button>
+            <el-button type="text" @click="unbindDevice(row)">解绑</el-button>
+            <el-button type="text" @click="deleteUser(row)" style="color: #f56c6c;">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
-      <div class="pagination-container">
+      <div class="pagination">
         <el-pagination
           background
           layout="total, sizes, prev, pager, next, jumper"
-          :total="filteredUsers.length"
+          :total="total"
           :page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
           @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        ></el-pagination>
+          @current-change="handlePageChange"
+        />
       </div>
     </el-card>
-    
-    <!-- 批量操作 -->
-    <div class="batch-operations" v-if="selectedUsers.length > 0">
-      <el-button type="primary" @click="batchExport">批量导出</el-button>
-      <el-button type="warning" @click="batchActivate">批量启用</el-button>
-      <el-button type="danger" @click="batchDeactivate">批量禁用</el-button>
-      <el-button type="danger" @click="batchDelete">批量删除</el-button>
-    </div>
-    
-    <!-- 新增用户对话框 -->
-    <el-dialog
-      title="新增用户"
-      :visible.sync="addUserDialogVisible"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="newUserForm" :rules="newUserRules" ref="newUserForm" label-width="100px">
+
+    <!-- ====================== 弹窗 ====================== -->
+    <!-- 用户详情 -->
+    <el-dialog title="用户详情" :visible.sync="detailVisible" width="860px">
+      <div v-if="currentUser" class="detail-layout">
+        <div class="detail-left">
+          <el-avatar :src="currentUser.avatar" size="100" />
+          <h3>{{ currentUser.name }}</h3>
+          <p>{{ currentUser.userId }}</p>
+          <el-tag type="success" v-if="currentUser.status === 'active'">正常</el-tag>
+          <el-tag type="danger" v-else>封禁</el-tag>
+        </div>
+
+        <div class="detail-right">
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="手机号">{{ currentUser.phone }}</el-descriptions-item>
+            <el-descriptions-item label="邮箱">{{ currentUser.email }}</el-descriptions-item>
+            <el-descriptions-item label="类型">{{ currentUser.userType === 'student' ? '学生' : '教师' }}</el-descriptions-item>
+            <el-descriptions-item label="注册时间">{{ currentUser.createdAt }}</el-descriptions-item>
+            <el-descriptions-item label="绑定设备">{{ currentUser.deviceCount }} 台</el-descriptions-item>
+            <el-descriptions-item label="班级/部门">{{ currentUser.classInfo || currentUser.department }}</el-descriptions-item>
+          </el-descriptions>
+
+          <div class="device-section">
+            <h4>绑定设备</h4>
+            <el-table :data="currentUser.devices" size="small" border height="180">
+              <el-table-column prop="mac" label="MAC地址" />
+              <el-table-column prop="status" label="状态" />
+              <el-table-column prop="lastTime" label="最后心跳" />
+            </el-table>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 新增用户 -->
+    <el-dialog title="新增用户" :visible.sync="addVisible" width="600px">
+      <el-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="100px">
         <el-form-item label="用户类型" prop="userType">
-          <el-select v-model="newUserForm.userType" placeholder="请选择用户类型" @change="handleUserTypeChange">
-            <el-option label="学生" value="student"></el-option>
-            <el-option label="教师" value="teacher"></el-option>
-            <el-option label="管理员" value="admin"></el-option>
+          <el-select v-model="addForm.userType" @change="onTypeChange">
+            <el-option label="学生" value="student" />
+            <el-option label="教师" value="teacher" />
           </el-select>
         </el-form-item>
-        
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="newUserForm.username" placeholder="请输入用户名"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="newUserForm.password" type="password" placeholder="请输入密码"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="姓名" prop="name">
-          <el-input v-model="newUserForm.name" placeholder="请输入姓名"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="性别" prop="gender">
-          <el-radio-group v-model="newUserForm.gender">
-            <el-radio label="男"></el-radio>
-            <el-radio label="女"></el-radio>
-          </el-radio-group>
-        </el-form-item>
-        
-        <el-form-item label="手机号码" prop="phone">
-          <el-input v-model="newUserForm.phone" placeholder="请输入手机号码"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="newUserForm.email" placeholder="请输入邮箱"></el-input>
-        </el-form-item>
-        
-        <!-- 学生特有字段 -->
-        <el-form-item v-if="newUserForm.userType === 'student'" label="学号" prop="studentId">
-          <el-input v-model="newUserForm.studentId" placeholder="请输入学号"></el-input>
-        </el-form-item>
-        
-        <el-form-item v-if="newUserForm.userType === 'student'" label="班级" prop="classInfo">
-          <el-input v-model="newUserForm.classInfo" placeholder="请输入班级"></el-input>
-        </el-form-item>
-        
-        <el-form-item v-if="newUserForm.userType === 'student'" label="年级" prop="grade">
-          <el-input v-model="newUserForm.grade" placeholder="请输入年级"></el-input>
-        </el-form-item>
-        
-        <!-- 教师特有字段 -->
-        <el-form-item v-if="newUserForm.userType === 'teacher'" label="工号" prop="teacherId">
-          <el-input v-model="newUserForm.teacherId" placeholder="请输入工号"></el-input>
-        </el-form-item>
-        
-        <el-form-item v-if="newUserForm.userType === 'teacher'" label="部门" prop="department">
-          <el-input v-model="newUserForm.department" placeholder="请输入部门"></el-input>
+        <el-form-item label="姓名" prop="name"><el-input v-model="addForm.name" /></el-form-item>
+        <el-form-item label="手机号" prop="phone"><el-input v-model="addForm.phone" /></el-form-item>
+        <el-form-item label="密码" prop="password"><el-input v-model="addForm.password" type="password" /></el-form-item>
+        <el-form-item label="班级" prop="classInfo" v-if="addForm.userType === 'student'"><el-input v-model="addForm.classInfo" /></el-form-item>
+        <el-form-item label="部门" prop="department" v-if="addForm.userType === 'teacher'"><el-input v-model="addForm.department" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addVisible = false">取消</el-button>
+        <el-button type="primary" @click="addUser">确认创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量推送 -->
+    <el-dialog title="批量推送消息" :visible.sync="pushVisible" width="500px">
+      <el-form :model="pushForm" label-width="100px">
+        <el-form-item label="推送内容">
+          <el-input v-model="pushForm.content" type="textarea" rows="4" />
         </el-form-item>
       </el-form>
-      
-      <div slot="footer" class="dialog-footer">
-        <el-button @click="addUserDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitNewUser">创建用户</el-button>
-      </div>
+      <template #footer>
+        <el-button @click="pushVisible = false">取消</el-button>
+        <el-button type="primary" @click="doPush">确认推送</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script>
+import * as XLSX from 'xlsx'
 export default {
   name: 'AdminUsers',
   data() {
     return {
-      // 用户数据
-      users: [
-        {
-          userId: 'User001',
-          username: 'student001',
-          name: '曹睿焜',
-          userType: 'student',
-          gender: '男',
-          studentId: '2023423320102',
-          classInfo: '高一1班',
-          grade: '高一',
-          phone: '13800138001',
-          email: 'student001@example.com',
-          status: 'active',
-          createdAt: '2023-09-01 08:00:00'
-        },
-        {
-          userId: 'User002',
-          username: 'student002',
-          name: '张小明',
-          userType: 'student',
-          gender: '男',
-          studentId: '2023423320103',
-          classInfo: '高一1班',
-          grade: '高一',
-          phone: '13800138002',
-          email: 'student002@example.com',
-          status: 'active',
-          createdAt: '2023-09-01 08:00:00'
-        },
-        {
-          userId: 'User003',
-          username: 'teacher001',
-          name: '李老师',
-          userType: 'teacher',
-          gender: '女',
-          teacherId: 'Teacher101',
-          department: '体育组',
-          classInfo: '高一1班',
-          phone: '13800138003',
-          email: 'teacher001@example.com',
-          status: 'active',
-          createdAt: '2023-09-01 08:00:00'
-        },
-        {
-          userId: 'User004',
-          username: 'admin001',
-          name: '管理员',
-          userType: 'admin',
-          gender: '男',
-          adminId: 'Admin001',
-          phone: '13800138004',
-          email: 'admin001@example.com',
-          status: 'active',
-          createdAt: '2023-09-01 08:00:00'
-        }
-      ],
-      // 搜索和筛选
-      searchQuery: '',
-      userTypeFilter: '',
-      statusFilter: '',
-      // 分页
+      loading: false,
+      searchKey: '',
+      filter: { type: '', status: '' },
       pageSize: 10,
       currentPage: 1,
-      // 选择的用户
-      selectedUsers: [],
-      // 对话框
-      addUserDialogVisible: false,
-      // 表单数据
-      newUserForm: {
-        userType: 'student',
-        username: '',
-        password: '',
-        name: '',
-        gender: '男',
-        phone: '',
-        email: '',
-        studentId: '',
-        classInfo: '',
-        grade: '',
-        teacherId: '',
-        department: '',
-        status: 'active'
+      selected: [],
+      // 详情
+      detailVisible: false,
+      currentUser: null,
+      // 新增
+      addVisible: false,
+      addForm: { userType: 'student', name: '', phone: '', password: '', classInfo: '', department: '' },
+      addRules: {
+        name: [{ required: true, message: '请输入姓名' }],
+        phone: [{ required: true, message: '请输入手机号' }],
+        password: [{ required: true, message: '请输入密码' }],
       },
-      newUserRules: {
-        userType: [
-          { required: true, message: '请选择用户类型', trigger: 'change' }
-        ],
-        username: [
-          { required: true, message: '请输入用户名', trigger: 'blur' },
-          { min: 5, max: 20, message: '用户名长度在 5 到 20 个字符', trigger: 'blur' }
-        ],
-        password: [
-          { required: true, message: '请输入密码', trigger: 'blur' },
-          { min: 6, max: 20, message: '密码长度在 6 到 20 个字符', trigger: 'blur' }
-        ],
-        name: [
-          { required: true, message: '请输入姓名', trigger: 'blur' }
-        ],
-        gender: [
-          { required: true, message: '请选择性别', trigger: 'change' }
-        ],
-        phone: [
-          { required: true, message: '请输入手机号码', trigger: 'blur' },
-          { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
-        ],
-        email: [
-          { required: true, message: '请输入邮箱', trigger: 'blur' },
-          { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
-        ],
-        studentId: [
-          { required: true, message: '请输入学号', trigger: 'blur', validator: (rule, value, callback) => {
-            if (this.newUserForm.userType === 'student' && !value) {
-              callback(new Error('请输入学号'));
-            } else {
-              callback();
-            }
-          }}
-        ],
-        classInfo: [
-          { required: true, message: '请输入班级', trigger: 'blur', validator: (rule, value, callback) => {
-            if (this.newUserForm.userType === 'student' && !value) {
-              callback(new Error('请输入班级'));
-            } else {
-              callback();
-            }
-          }}
-        ],
-        grade: [
-          { required: true, message: '请输入年级', trigger: 'blur', validator: (rule, value, callback) => {
-            if (this.newUserForm.userType === 'student' && !value) {
-              callback(new Error('请输入年级'));
-            } else {
-              callback();
-            }
-          }}
-        ],
-        teacherId: [
-          { required: true, message: '请输入工号', trigger: 'blur', validator: (rule, value, callback) => {
-            if (this.newUserForm.userType === 'teacher' && !value) {
-              callback(new Error('请输入工号'));
-            } else {
-              callback();
-            }
-          }}
-        ],
-        department: [
-          { required: true, message: '请输入部门', trigger: 'blur', validator: (rule, value, callback) => {
-            if (this.newUserForm.userType === 'teacher' && !value) {
-              callback(new Error('请输入部门'));
-            } else {
-              callback();
-            }
-          }}
-        ]
-      }
-    };
+      // 推送
+      pushVisible: false,
+      pushForm: { content: '' },
+      // 模拟用户
+      userList: [
+        { userId: 'U001', name: '曹睿焜', phone: '13800138001', userType: 'student', status: 'active', deviceCount: 2, createdAt: '2025-01-01 12:00:00', avatar: 'https://cube.elemecdn.com/0/5/2/c1dd1df902796a5e1f4a862b5jpeg.jpeg', classInfo: '高一1班', devices: [{ mac: '00:1A:2B:3C:4D:01', status: '在线', lastTime: '2025-12-20 15:00' },{ mac: '00:1A:2B:3C:4D:02', status: '离线', lastTime: '2025-12-19 10:00' }]},
+        { userId: 'U002', name: '张小明', phone: '13800138002', userType: 'student', status: 'active', deviceCount: 1, createdAt: '2025-01-02 12:00:00', avatar: 'https://cube.elemecdn.com/0/5/2/c1dd1df902796a5e1f4a862b5jpeg.jpeg', classInfo: '高一2班', devices: [{ mac: '00:1A:2B:3C:4D:03', status: '在线', lastTime: '2025-12-20 14:00' }]},
+        { userId: 'U003', name: '李老师', phone: '13800138003', userType: 'teacher', status: 'active', deviceCount: 0, createdAt: '2025-01-03 12:00:00', avatar: 'https://cube.elemecdn.com/0/5/2/c1dd1df902796a5e1f4a862b5jpeg.jpeg', department: '体育组', devices: []},
+      ],
+    }
   },
   computed: {
-    filteredUsers() {
-      let result = [...this.users];
-      
-      // 搜索过滤
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        result = result.filter(user => 
-          user.username.toLowerCase().includes(query) ||
-          user.name.toLowerCase().includes(query) ||
-          (user.studentId && user.studentId.toLowerCase().includes(query)) ||
-          (user.teacherId && user.teacherId.toLowerCase().includes(query)) ||
-          (user.adminId && user.adminId.toLowerCase().includes(query))
-        );
-      }
-      
-      // 用户类型过滤
-      if (this.userTypeFilter) {
-        result = result.filter(user => user.userType === this.userTypeFilter);
-      }
-      
-      // 状态过滤
-      if (this.statusFilter) {
-        result = result.filter(user => user.status === this.statusFilter);
-      }
-      
-      return result;
-    }
+    total() { return this.userList.length }
   },
   methods: {
-    // 获取用户类型颜色
-    getUserTypeColor(type) {
-      switch (type) {
-        case 'student': return 'primary';
-        case 'teacher': return 'success';
-        case 'admin': return 'warning';
-        default: return 'default';
-      }
+    doSearch() {
+      this.$message.success('搜索完成')
     },
-    
-    // 获取用户类型文本
-    getUserTypeText(type) {
-      switch (type) {
-        case 'student': return '学生';
-        case 'teacher': return '教师';
-        case 'admin': return '管理员';
-        default: return '未知';
-      }
+    resetSearch() {
+      this.searchKey = ''
+      this.filter = { type: '', status: '' }
     },
-    
-    // 搜索用户
-    searchUsers() {
-      this.$message.info('搜索功能开发中');
+    handleSelect(val) {
+      this.selected = val
     },
-    
-    // 重置筛选条件
-    resetFilters() {
-      this.searchQuery = '';
-      this.userTypeFilter = '';
-      this.statusFilter = '';
-      this.$message.success('筛选条件已重置');
+    handleSizeChange(val) { this.pageSize = val },
+    handlePageChange(val) { this.currentPage = val },
+    openDetail(row) {
+      this.currentUser = row
+      this.detailVisible = true
     },
-    
-    // 分页相关
-    handleSizeChange(val) {
-      this.pageSize = val;
+    openEdit(row) {
+      this.$message.info('编辑功能')
     },
-    
-    handleCurrentChange(val) {
-      this.currentPage = val;
+    unbindDevice(row) {
+      this.$message.success('已解绑该用户所有设备')
     },
-    
-    // 选择用户
-    handleSelectionChange(selection) {
-      this.selectedUsers = selection;
+    deleteUser(row) {
+      this.$confirm('确定删除？').then(() => {
+        this.userList = this.userList.filter(u => u.userId !== row.userId)
+        this.$message.success('删除成功')
+      })
     },
-    
-    // 状态变更
-    handleStatusChange(user) {
-      this.$message.success(`用户 ${user.name} 状态已更新为 ${user.status === 'active' ? '启用' : '禁用'}`);
+    updateStatus(row) {
+      this.$message.success(`已${row.status === 'active' ? '启用' : '禁用'}`)
     },
-    
-    // 用户类型变更
-    handleUserTypeChange() {
-      // 重置特定于用户类型的字段
-      this.newUserForm.studentId = '';
-      this.newUserForm.classInfo = '';
-      this.newUserForm.grade = '';
-      this.newUserForm.teacherId = '';
-      this.newUserForm.department = '';
+    // 新增
+    openAddDialog() {
+      this.addVisible = true
+      this.addForm = { userType: 'student', name: '', phone: '', password: '', classInfo: '', department: '' }
     },
-    
-    // 用户管理操作
-    showAddUserDialog() {
-      this.newUserForm = {
-        userType: 'student',
-        username: '',
-        password: '',
-        name: '',
-        gender: '男',
-        phone: '',
-        email: '',
-        studentId: '',
-        classInfo: '',
-        grade: '',
-        teacherId: '',
-        department: '',
-        status: 'active'
-      };
-      this.addUserDialogVisible = true;
-    },
-    
-    submitNewUser() {
-      this.$refs.newUserForm.validate((valid) => {
-        if (valid) {
-          // 创建新用户
-          const newUser = {
-            userId: `User${String(this.users.length + 1).padStart(3, '0')}`,
-            ...this.newUserForm
-          };
-          
-          this.users.push(newUser);
-          this.addUserDialogVisible = false;
-          this.$message.success('用户创建成功');
+    onTypeChange() {},
+    addUser() {
+      this.$refs.addFormRef.validate(valid => {
+        if (!valid) return
+        const newUser = {
+          userId: 'U' + Date.now().toString().slice(-4),
+          name: this.addForm.name,
+          phone: this.addForm.phone,
+          userType: this.addForm.userType,
+          status: 'active',
+          deviceCount: 0,
+          createdAt: new Date().toLocaleString(),
+          avatar: 'https://cube.elemecdn.com/0/5/2/c1dd1df902796a5e1f4a862b5jpeg.jpeg',
+          classInfo: this.addForm.classInfo,
+          department: this.addForm.department,
+          devices: []
         }
-      });
+        this.userList.unshift(newUser)
+        this.addVisible = false
+        this.$message.success('创建成功')
+      })
     },
-    
-    viewUserDetail(userId) {
-      this.$message.info('查看用户详情功能开发中');
+    // 批量
+    batchEnable() { this.selected.forEach(u => u.status = 'active'); this.$message.success('批量启用') },
+    batchDisable() { this.selected.forEach(u => u.status = 'inactive'); this.$message.success('批量禁用') },
+    batchDelete() { this.userList = this.userList.filter(u => !this.selected.some(s => s.userId === u.userId)); this.selected = []; this.$message.success('删除成功') },
+    // 推送
+    openPushDialog() { this.pushVisible = true },
+    doPush() { this.pushVisible = false; this.$message.success('推送成功') },
+    // 导出
+    exportAllUsers() {
+      const data = this.userList.map(u => ({
+        用户ID: u.userId, 姓名: u.name, 手机号: u.phone, 类型: u.userType === 'student' ? '学生' : '教师', 状态: u.status === 'active' ? '正常' : '禁用', 绑定设备: u.deviceCount + '台', 注册时间: u.createdAt
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '用户列表')
+      XLSX.writeFile(wb, '用户管理列表.xlsx')
+      this.$message.success('导出成功')
     },
-    
-    editUser(userId) {
-      this.$message.info('编辑用户功能开发中');
-    },
-    
-    deleteUser(userId) {
-      this.$confirm(`确定要删除该用户吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        const index = this.users.findIndex(user => user.userId === userId);
-        if (index !== -1) {
-          this.users.splice(index, 1);
-          this.$message.success('用户删除成功');
-        }
-      }).catch(() => {
-        this.$message.info('已取消删除');
-      });
-    },
-    
-    // 批量操作
-    batchExport() {
-      this.$message.info('批量导出功能开发中');
-    },
-    
-    batchActivate() {
-      if (this.selectedUsers.length === 0) {
-        this.$message.warning('请选择要操作的用户');
-        return;
-      }
-      
-      this.$confirm(`确定要启用选中的 ${this.selectedUsers.length} 个用户吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        this.selectedUsers.forEach(user => {
-          user.status = 'active';
-        });
-        this.$message.success('用户批量启用成功');
-        this.selectedUsers = [];
-      }).catch(() => {
-        this.$message.info('已取消操作');
-      });
-    },
-    
-    batchDeactivate() {
-      if (this.selectedUsers.length === 0) {
-        this.$message.warning('请选择要操作的用户');
-        return;
-      }
-      
-      this.$confirm(`确定要禁用选中的 ${this.selectedUsers.length} 个用户吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        this.selectedUsers.forEach(user => {
-          user.status = 'inactive';
-        });
-        this.$message.success('用户批量禁用成功');
-        this.selectedUsers = [];
-      }).catch(() => {
-        this.$message.info('已取消操作');
-      });
-    },
-    
-    batchDelete() {
-      if (this.selectedUsers.length === 0) {
-        this.$message.warning('请选择要操作的用户');
-        return;
-      }
-      
-      this.$confirm(`确定要删除选中的 ${this.selectedUsers.length} 个用户吗？此操作不可恢复！`, '警告', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'danger'
-      }).then(() => {
-        this.selectedUsers.forEach(user => {
-          const index = this.users.findIndex(u => u.userId === user.userId);
-          if (index !== -1) {
-            this.users.splice(index, 1);
-          }
-        });
-        this.$message.success('用户批量删除成功');
-        this.selectedUsers = [];
-      }).catch(() => {
-        this.$message.info('已取消操作');
-      });
-    },
-    
-    // 导入导出
-    importUsers() {
-      this.$message.info('导入用户功能开发中');
-    },
-    
-    exportUsers() {
-      this.$message.info('导出用户功能开发中');
+    exportSelected() {
+      const data = this.selected.map(u => ({
+        用户ID: u.userId, 姓名: u.name, 手机号: u.phone, 类型: u.userType === 'student' ? '学生' : '教师', 状态: u.status === 'active' ? '正常' : '禁用', 绑定设备: u.deviceCount + '台', 注册时间: u.createdAt
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '所选用户')
+      XLSX.writeFile(wb, '所选用户列表.xlsx')
+      this.$message.success('导出成功')
     }
   }
-};
+}
 </script>
 
 <style scoped>
-.admin-users {
-  padding: 20px;
-  background-color: #f5f7fa;
-  height: 100%;
-  overflow-y: auto;
+.admin-users-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
 }
-
-.page-header {
+.page-header-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
-
-.page-header h2 {
-  margin: 0 0 10px 0;
-  color: #303133;
+.page-header-card h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  color: #1f2329;
 }
-
-.page-header p {
+.page-header-card p {
   margin: 0;
-  color: #606266;
+  color: #909399;
 }
-
-.search-card {
+.search-panel {
+  border-radius: 16px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
-
-.search-container {
+.search-row {
   display: flex;
   align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 10px;
 }
-
-.search-actions {
+.right-actions {
   margin-left: auto;
   display: flex;
   gap: 10px;
 }
-
-.table-card {
-  margin-bottom: 20px;
+.batch-bar {
+  background: #fff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
-
-.pagination-container {
+.table-panel {
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.pagination {
   display: flex;
   justify-content: flex-end;
-  margin-top: 20px;
+  padding: 16px 20px;
 }
-
-.batch-operations {
+.detail-layout {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  gap: 24px;
 }
-
-.dialog-footer {
+.detail-left {
+  width: 180px;
   text-align: center;
+  padding-top: 20px;
+}
+.detail-right {
+  flex: 1;
+}
+.device-section {
+  margin-top: 16px;
+}
+.device-section h4 {
+  margin-bottom: 8px;
+  font-size: 14px;
 }
 </style>

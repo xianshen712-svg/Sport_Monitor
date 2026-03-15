@@ -52,6 +52,12 @@ router.put('/reset-password', authenticateToken, UserController.resetPassword);
 // 管理员和老师路由
 router.post('/import', authenticateToken, authorizeRole(['admin', 'teacher']), UserController.importUsers);
 
+// 用户管理路由（管理员权限）
+router.get('/all', authenticateToken, authorizeRole(['admin']), UserController.getAllUsers);
+router.post('/create', authenticateToken, authorizeRole(['admin']), UserController.createUserByAdmin);
+router.put('/:userId/status', authenticateToken, authorizeRole(['admin']), UserController.updateUserStatus);
+router.delete('/:userId', authenticateToken, authorizeRole(['admin']), UserController.deleteUser);
+
 // 头像上传路由
 router.post('/avatar', authenticateToken, upload.single('avatar'), UserController.uploadAvatar);
 

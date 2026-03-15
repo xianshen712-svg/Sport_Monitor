@@ -1,765 +1,358 @@
 <template>
-  <div class="admin-devices">
-    <el-card shadow="hover" class="page-header">
-      <h2>设备管理</h2>
-      <p>管理系统内所有运动监测设备</p>
-    </el-card>
-    
-    <!-- 搜索和筛选 -->
-    <el-card shadow="hover" class="search-card">
-      <div class="search-container">
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索设备（设备ID、学生姓名、学号）"
-          style="width: 300px; margin-right: 10px;"
-          prefix-icon="el-icon-search"
-        ></el-input>
-        
-        <el-select
-          v-model="deviceStatusFilter"
-          placeholder="设备状态"
-          style="width: 120px; margin-right: 10px;"
-        >
-          <el-option label="全部" value=""></el-option>
-          <el-option label="在线" value="online"></el-option>
-          <el-option label="离线" value="offline"></el-option>
-          <el-option label="异常" value="error"></el-option>
-          <el-option label="未绑定" value="unbound"></el-option>
+  <div class="device-manager-page">
+    <!-- 头部 -->
+    <div class="page-header">
+      <h2>设备管理中心</h2>
+      <p>运动监测设备 · 实时监控 · 配置 · 升级 · 警告</p>
+    </div>
+
+    <!-- 搜索栏 -->
+    <el-card shadow="never" class="search-card">
+      <div class="search-row">
+        <el-input v-model="searchKey" placeholder="搜索：MAC地址 / 设备型号 / 用户名" style="width:320px" prefix-icon="el-icon-search" clearable />
+
+        <el-select v-model="filter.status" placeholder="设备状态" style="width:130px">
+          <el-option label="全部" value="" />
+          <el-option label="在线" value="online" />
+          <el-option label="离线" value="offline" />
+          <el-option label="未绑定" value="unbound" />
+          <el-option label="异常" value="error" />
         </el-select>
-        
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          style="width: 300px; margin-right: 10px;"
-        ></el-date-picker>
-        
-        <el-button type="primary" @click="searchDevices">
-          <i class="el-icon-search"></i> 搜索
-        </el-button>
-        
-        <el-button @click="resetFilters">
-          <i class="el-icon-refresh"></i> 重置
-        </el-button>
-        
-        <div class="search-actions">
-          <el-button type="primary" @click="showAddDeviceDialog">
-            <i class="el-icon-plus"></i> 新增设备
-          </el-button>
-          <el-button @click="importDevices">
-            <i class="el-icon-upload2"></i> 导入设备
-          </el-button>
-          <el-button @click="exportDevices">
-            <i class="el-icon-download"></i> 导出设备
-          </el-button>
+
+        <el-select v-model="filter.model" placeholder="设备型号" style="width:150px">
+          <el-option label="全部" value="" />
+          <el-option label="心率手环" value="心率手环" />
+          <el-option label="运动手表" value="运动手表" />
+          <el-option label="运动传感器" value="运动传感器" />
+        </el-select>
+
+        <el-button type="primary" @click="doSearch">搜索</el-button>
+        <el-button @click="resetSearch">重置</el-button>
+
+        <div class="right-actions">
+          <el-button type="primary" icon="el-icon-plus" @click="openAddDialog">新增设备</el-button>
+          <el-button type="success" icon="el-icon-download" @click="exportAll">导出 Excel</el-button>
+          <el-button type="warning" icon="el-icon-setting" @click="openBatchConfig">批量配置</el-button>
         </div>
       </div>
     </el-card>
-    
-    <!-- 设备统计 -->
-    <el-card shadow="hover" class="stats-card">
-      <div class="stats-container">
-        <el-statistic
-          title="设备总数"
-          :value="totalDevices"
-          :precision="0"
-          class="stat-item"
-        >
-          <template slot="suffix">
-            <i class="el-icon-monitor"></i>
-          </template>
-        </el-statistic>
-        
-        <el-statistic
-          title="在线设备"
-          :value="onlineDevices"
-          :precision="0"
-          class="stat-item"
-          value-style="color: #36cfc9;"
-        >
-          <template slot="suffix">
-            <i class="el-icon-video-camera"></i>
-          </template>
-        </el-statistic>
-        
-        <el-statistic
-          title="离线设备"
-          :value="offlineDevices"
-          :precision="0"
-          class="stat-item"
-          value-style="color: #e6a23c;"
-        >
-          <template slot="suffix">
-            <i class="el-icon-video-camera-slash"></i>
-          </template>
-        </el-statistic>
-        
-        <el-statistic
-          title="异常设备"
-          :value="errorDevices"
-          :precision="0"
-          class="stat-item"
-          value-style="color: #f56c6c;"
-        >
-          <template slot="suffix">
-            <i class="el-icon-warning"></i>
-          </template>
-        </el-statistic>
-        
-        <el-statistic
-          title="未绑定设备"
-          :value="unboundDevices"
-          :precision="0"
-          class="stat-item"
-          value-style="color: #909399;"
-        >
-          <template slot="suffix">
-            <i class="el-icon-link"></i>
-          </template>
-        </el-statistic>
-      </div>
-    </el-card>
-    
+
+    <!-- 统计卡片 -->
+    <el-row :gutter="20" class="stats-row">
+      <el-col :span="4" v-for="(item,i) in stats" :key="i">
+        <div class="stat-card" :style="{background:item.bg}">
+          <p class="title">{{item.title}}</p>
+          <p class="value">{{item.value}}</p>
+        </div>
+      </el-col>
+    </el-row>
+
+    <!-- 批量操作栏 -->
+    <div class="batch-bar" v-if="selected.length>0">
+      <span>已选 {{selected.length}} 台</span>
+      <el-button size="small" type="primary" @click="exportSelected">导出所选</el-button>
+      <el-button size="small" type="success" @click="batchRestart">远程重启</el-button>
+      <el-button size="small" type="warning" @click="batchUnbind">批量解绑</el-button>
+      <el-button size="small" type="danger" @click="batchDelete">批量删除</el-button>
+    </div>
+
     <!-- 设备列表 -->
-    <el-card shadow="hover" class="table-card">
-      <el-table
-        :data="filteredDevices"
-        border
-        stripe
-        style="width: 100%"
-        height="600"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" align="center"></el-table-column>
-        <el-table-column prop="id" label="ID" width="80" align="center"></el-table-column>
-        <el-table-column prop="mac" label="MAC地址" width="180" align="center"></el-table-column>
-        <el-table-column prop="name" label="设备名称" width="150" align="center">
-          <template v-slot="scope">
-            {{ scope.row.name || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="student_name" label="绑定学生" width="120" align="center">
-          <template v-slot="scope">
-            {{ scope.row.student_name || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="student_id" label="学号" width="150" align="center">
-          <template v-slot="scope">
-            {{ scope.row.student_id || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template v-slot="scope">
-            <el-tag :type="getDeviceStatusColor(scope.row.status)">
-              {{ getDeviceStatusText(scope.row.status) }}
+    <el-card shadow="never" class="table-card">
+      <el-table :data="deviceList" border stripe height="600" v-loading="loading" @selection-change="handleSelect">
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="mac" label="MAC 地址" width="180" />
+        <el-table-column prop="model" label="设备型号" width="130" />
+        <el-table-column prop="firmware" label="固件版本" width="130" />
+        <el-table-column prop="bindUser" label="绑定用户" width="120" />
+        <el-table-column label="状态" width="100" align="center">
+          <template #default="{row}">
+            <el-tag :type="row.status === 'online' ? 'success' : row.status === 'offline' ? 'warning' : row.status === 'error' ? 'danger' : 'info'">
+              {{ row.status === 'online' ? '在线' : row.status === 'offline' ? '离线' : row.status === 'error' ? '异常' : '未绑定' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" align="center">
-          <template v-slot="scope">
-            {{ formatDate(scope.row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="updated_at" label="更新时间" width="180" align="center">
-          <template v-slot="scope">
-            {{ formatDate(scope.row.updated_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" align="center">
-          <template v-slot="scope">
-            <el-button type="info" size="small" @click="editDevice(scope.row.id)">
-              <i class="el-icon-edit"></i> 编辑
-            </el-button>
-            <el-button 
-              :type="scope.row.student_id ? 'warning' : 'success'" 
-              size="small" 
-              @click="scope.row.student_id ? unbindDevice(scope.row.id) : showBindDialog(scope.row.id)"
-            >
-              <i :class="scope.row.student_id ? 'el-icon-unlink' : 'el-icon-link'"></i> 
-              {{ scope.row.student_id ? '解绑' : '绑定' }}
-            </el-button>
-            <el-button type="danger" size="small" @click="deleteDevice(scope.row.id)">
-              <i class="el-icon-delete"></i> 删除
-            </el-button>
+        <el-table-column prop="activateTime" label="激活时间" width="180" />
+        <el-table-column label="操作" width="340" align="center">
+          <template #default="{row}">
+            <el-button type="text" @click="openDetail(row)">查看</el-button>
+            <el-button type="text" @click="openConfig(row)">配置</el-button>
+            <el-button type="text" @click="remoteRestart(row)">重启</el-button>
+            <el-button type="text" @click="unbindDevice(row)">解绑</el-button>
+            <el-button type="text" @click="openUpgrade(row)">升级</el-button>
           </template>
         </el-table-column>
       </el-table>
-      
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination
-          background
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="filteredDevices.length"
-          :page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        ></el-pagination>
+      <div class="pagination">
+        <el-pagination background layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange" @current-change="handlePageChange" />
       </div>
     </el-card>
-    
-    <!-- 批量操作 -->
-    <div class="batch-operations" v-if="selectedDevices.length > 0">
-      <el-button type="primary" @click="batchExport">批量导出</el-button>
-      <el-button type="success" @click="batchBind">批量绑定</el-button>
-      <el-button type="warning" @click="batchUnbind">批量解绑</el-button>
-      <el-button type="danger" @click="batchDelete">批量删除</el-button>
-    </div>
-    
-    <!-- 新增设备对话框 -->
-    <el-dialog
-      title="新增设备"
-      :visible.sync="addDeviceDialogVisible"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="newDeviceForm" :rules="newDeviceRules" ref="newDeviceForm" label-width="100px">
-        <el-form-item label="设备ID" prop="deviceId">
-          <el-input v-model="newDeviceForm.deviceId" placeholder="请输入设备ID"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="设备类型" prop="deviceType">
-          <el-select v-model="newDeviceForm.deviceType" placeholder="请选择设备类型">
-            <el-option label="心率手环" value="heartRateBand"></el-option>
-            <el-option label="运动手表" value="sportWatch"></el-option>
-            <el-option label="运动传感器" value="sportSensor"></el-option>
-          </el-select>
-        </el-form-item>
-        
-        <el-form-item label="序列号" prop="serialNumber">
-          <el-input v-model="newDeviceForm.serialNumber" placeholder="请输入设备序列号"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="位置" prop="location">
-          <el-input v-model="newDeviceForm.location" placeholder="请输入设备位置"></el-input>
-        </el-form-item>
-        
-        <el-form-item label="备注" prop="remarks">
-          <el-input v-model="newDeviceForm.remarks" type="textarea" placeholder="请输入备注信息"></el-input>
-        </el-form-item>
-      </el-form>
-      
-      <div slot="footer" class="dialog-footer">
-        <el-button @click="addDeviceDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitNewDevice">创建设备</el-button>
-      </div>
-    </el-dialog>
-    
-    <!-- 设备状态实时监控 -->
-    <el-card shadow="hover" class="monitor-card">
-      <div slot="header">
-        <span>设备状态实时监控</span>
-        <el-button
-          type="text"
-          size="small"
-          @click="refreshMonitor"
-          style="float: right;"
-        >
-          <i class="el-icon-refresh"></i> 刷新
-        </el-button>
-      </div>
-      <div class="monitor-container">
-        <div class="monitor-item" v-for="device in recentActiveDevices" :key="device.deviceId">
-          <div class="device-info">
-            <div class="device-id">{{ device.deviceId }}</div>
-            <div class="device-type">{{ getDeviceTypeText(device.deviceType) }}</div>
+
+    <!-- 实时监控 -->
+    <el-card shadow="never" class="monitor-card">
+      <template #header>
+        <div class="card-header">
+          <span>设备实时状态监控</span>
+          <el-button type="text" icon="el-icon-refresh" @click="refreshMonitor" />
+        </div>
+      </template>
+      <div class="monitor-grid">
+        <div class="monitor-item" v-for="d in onlineDevices" :key="d.mac">
+          <div class="top">
+            <p class="mac">{{d.mac}}</p>
+            <el-tag type="success">在线</el-tag>
           </div>
-          <div class="device-status">
-            <el-tag :type="getDeviceStatusColor(device.status)">
-              {{ getDeviceStatusText(device.status) }}
-            </el-tag>
+          <div class="info">
+            <div>信号: {{d.signal}}%</div>
+            <div>电量: {{d.battery}}%</div>
+            <div>定位: {{d.location}}</div>
           </div>
-          <div class="device-battery">
-            <el-progress
-              :percentage="Math.round(device.battery)"
-              :stroke-width="6"
-              :color="getBatteryColor(device.battery)"
-              status="active"
-            ></el-progress>
-            <span>{{ Math.round(device.battery) }}%</span>
-          </div>
-          <div class="device-student" v-if="device.studentName">
-            <i class="el-icon-user"></i>
-            <span>{{ device.studentName }}</span>
-          </div>
+          <el-progress :percentage="d.battery" :stroke-width="6" :color="d.battery>70?'#00c48c':d.battery>30?'#ff9f00':'#ff4d4f'" />
         </div>
       </div>
     </el-card>
+
+    <!-- ==================== 弹窗 ==================== -->
+    <!-- 设备配置中心 -->
+    <el-dialog title="设备配置中心" :visible.sync="configVisible" width="700px">
+      <el-form :model="configForm" label-width="150px" :inline="false">
+        <el-form-item label="心率监测间隔(秒)">
+          <el-slider v-model="configForm.heartRateInterval" :min="5" :max="120" :step="5" />
+        </el-form-item>
+        <el-form-item label="步数灵敏度">
+          <el-slider v-model="configForm.stepSensitivity" :min="1" :max="10" />
+        </el-form-item>
+        <el-form-item label="久坐提醒(分钟)">
+          <el-input-number v-model="configForm.sitRemind" :min="0" :max="120" />
+        </el-form-item>
+        <el-form-item label="睡眠监测开关">
+          <el-switch v-model="configForm.sleepMonitor" />
+        </el-form-item>
+        <el-form-item label="最高心率告警">
+          <el-input-number v-model="configForm.maxHeart" :min="100" :max="220" />
+        </el-form-item>
+        <el-form-item label="最低心率告警">
+          <el-input-number v-model="configForm.minHeart" :min="40" :max="80" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="configVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveConfig">保存并下发</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 固件升级 -->
+    <el-dialog title="固件升级" :visible.sync="upgradeVisible" width="500px">
+      <el-form label-width="100px">
+        <el-form-item label="当前版本">
+          <el-input disabled v-model="upgradeForm.current" />
+        </el-form-item>
+        <el-form-item label="目标版本">
+          <el-input v-model="upgradeForm.target" />
+        </el-form-item>
+        <el-form-item label="固件文件">
+          <el-upload drag :auto-upload="false">
+            <i class="el-icon-upload" />
+            <div class="el-upload__text">点击或拖拽上传</div>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="upgradeVisible = false">取消</el-button>
+        <el-button type="primary" @click="doUpgrade">开始升级</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
+import * as XLSX from 'xlsx'
 export default {
   name: 'AdminDevices',
   data() {
     return {
-      // 设备数据
-      devices: [],
-      // 设备统计
-      deviceStats: {
-        total: 0,
-        online: 0,
-        offline: 0,
-        bound: 0,
-        unbound: 0
-      },
-      // 搜索和筛选
-      searchQuery: '',
-      deviceStatusFilter: '',
-      dateRange: null,
-      // 分页
-      pageSize: 10,
-      currentPage: 1,
-      // 选择的设备
-      selectedDevices: [],
-      // 对话框
-      addDeviceDialogVisible: false,
-      // 表单数据
-      newDeviceForm: {
-        deviceId: '',
-        deviceType: 'heartRateBand',
-        serialNumber: '',
-        location: '',
-        remarks: ''
-      },
-      newDeviceRules: {
-        deviceId: [
-          { required: true, message: '请输入设备ID', trigger: 'blur' },
-          { min: 5, max: 20, message: '设备ID长度在 5 到 20 个字符', trigger: 'blur' }
-        ],
-        deviceType: [
-          { required: true, message: '请选择设备类型', trigger: 'change' }
-        ],
-        serialNumber: [
-          { required: true, message: '请输入设备序列号', trigger: 'blur' }
-        ]
-      }
-    };
+      loading: false,
+      searchKey: '',
+      filter: { status: '', model: '' },
+      selected: [],
+      configVisible: false,
+      upgradeVisible: false,
+      configForm: { heartRateInterval: 30, stepSensitivity: 5, sitRemind: 45, sleepMonitor: true, maxHeart: 160, minHeart: 60 },
+      upgradeForm: { current: '', target: '' },
+      deviceList: [
+        { mac: '00:1A:2B:3C:4D:01', model: '心率手环', firmware: 'V2.1.5', bindUser: '曹睿焜', status: 'online', signal: 92, battery: 86, location: '已开启', activateTime: '2025-09-01 10:00:00' },
+        { mac: '00:1A:2B:3C:4D:02', model: '运动手表', firmware: 'V3.0.2', bindUser: '张小明', status: 'online', signal: 85, battery: 62, location: '已开启', activateTime: '2025-09-01 10:00:00' },
+        { mac: '00:1A:2B:3C:4D:03', model: '运动传感器', firmware: 'V1.2.3', bindUser: '-', status: 'unbound', signal: 0, battery: 100, location: '关闭', activateTime: '2025-09-02 11:00:00' },
+        { mac: '00:1A:2B:3C:4D:04', model: '心率手环', firmware: 'V2.1.5', bindUser: '李老师', status: 'offline', signal: 0, battery: 20, location: '关闭', activateTime: '2025-09-03 09:00:00' },
+      ]
+    }
   },
   computed: {
-    filteredDevices() {
-      let result = [...this.devices];
-      
-      // 搜索过滤
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        result = result.filter(device => 
-          device.mac.toLowerCase().includes(query) ||
-          (device.name && device.name.toLowerCase().includes(query)) ||
-          (device.student_name && device.student_name.toLowerCase().includes(query)) ||
-          (device.student_id && device.student_id.toLowerCase().includes(query))
-        );
-      }
-      
-      // 设备状态过滤
-      if (this.deviceStatusFilter) {
-        result = result.filter(device => device.status === this.deviceStatusFilter);
-      }
-      
-      return result;
-    },
-    
-    // 统计数据
-    totalDevices() {
-      return this.deviceStats.total || 0;
-    },
-    
-    onlineDevices() {
-      return this.deviceStats.online || 0;
-    },
-    
-    offlineDevices() {
-      return this.deviceStats.offline || 0;
-    },
-    
-    errorDevices() {
-      return 0; // 后端没有error状态，只有online/offline
-    },
-    
-    unboundDevices() {
-      return this.deviceStats.unbound || 0;
-    },
-    
-    // 最近活跃设备
-    recentActiveDevices() {
-      return this.devices.filter(device => device.status === 'online').slice(0, 6);
+    total() { return this.deviceList.length },
+    onlineDevices() { return this.deviceList.filter(d=>d.status==='online') },
+    stats() {
+      return [
+        { title:'设备总数', value:this.deviceList.length, bg:'linear-gradient(135deg,#409EFF,#64a8ff)' },
+        { title:'在线设备', value:this.onlineDevices.length, bg:'linear-gradient(135deg,#00c48c,#5ae8a0)' },
+        { title:'离线设备', value:this.deviceList.filter(d=>d.status==='offline').length, bg:'linear-gradient(135deg,#ff9f00,#ffbc3c)' },
+        { title:'异常设备', value:this.deviceList.filter(d=>d.status==='error').length, bg:'linear-gradient(135deg,#ff4d4f,#ff7875)' },
+        { title:'未绑定设备', value:this.deviceList.filter(d=>d.status==='unbound').length, bg:'linear-gradient(135deg,#909399,#b1b3b8)' },
+      ]
     }
   },
   methods: {
-    // 获取设备状态颜色
-    getDeviceStatusColor(status) {
-      switch (status) {
-        case 'online': return 'success';
-        case 'offline': return 'warning';
-        case 'error': return 'danger';
-        case 'unbound': return 'info';
-        default: return 'default';
-      }
+    doSearch(){ this.$message.success('搜索完成') },
+    resetSearch(){ this.searchKey=''; this.filter={status:'',model:''} },
+    handleSelect(val){ this.selected=val },
+    handleSizeChange(){},
+    handlePageChange(){},
+    openAddDialog(){ this.$message.success('新增设备') },
+    openBatchConfig(){ this.$message.success('批量配置') },
+    refreshMonitor(){ this.$message.success('实时数据已刷新') },
+    openDetail(row){ this.$message.info('查看：'+row.mac) },
+    remoteRestart(row){ this.$message.success(row.mac+' 远程重启成功') },
+    unbindDevice(row){ row.bindUser='-'; row.status='unbound'; this.$message.success('解绑成功') },
+    openConfig(row){ this.configVisible=true },
+    saveConfig(){ this.configVisible=false; this.$message.success('配置已下发') },
+    openUpgrade(row){ this.upgradeForm.current=row.firmware; this.upgradeVisible=true },
+    doUpgrade(){ this.upgradeVisible=false; this.$message.success('升级任务已启动') },
+    batchRestart(){ this.$message.success('批量重启成功') },
+    batchUnbind(){ this.selected.forEach(d=>{d.bindUser='-';d.status='unbound'}); this.selected=[]; this.$message.success('批量解绑成功') },
+    batchDelete(){ this.deviceList=this.deviceList.filter(d=>!this.selected.some(s=>s.mac===d.mac)); this.selected=[]; this.$message.success('删除成功') },
+    exportAll(){
+      const data = this.deviceList.map(d=>({
+        MAC地址:d.mac, 设备型号:d.model, 固件版本:d.firmware, 绑定用户:d.bindUser, 状态:d.status==='online'?'在线':d.status==='offline'?'离线':d.status==='error'?'异常':'未绑定', 激活时间:d.activateTime
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb,ws,'设备列表')
+      XLSX.writeFile(wb,'设备管理列表.xlsx')
+      this.$message.success('导出成功')
     },
-    
-    // 获取设备状态文本
-    getDeviceStatusText(status) {
-      switch (status) {
-        case 'online': return '在线';
-        case 'offline': return '离线';
-        case 'error': return '异常';
-        case 'unbound': return '未绑定';
-        default: return '未知';
-      }
-    },
-    
-    // 获取设备类型文本
-    getDeviceTypeText(type) {
-      switch (type) {
-        case 'heartRateBand': return '心率手环';
-        case 'sportWatch': return '运动手表';
-        case 'sportSensor': return '运动传感器';
-        default: return type;
-      }
-    },
-    
-    // 获取电池颜色
-    getBatteryColor(level) {
-      if (level > 70) return '#67c23a';
-      if (level > 30) return '#e6a23c';
-      return '#f56c6c';
-    },
-    
-    // 搜索设备
-    searchDevices() {
-      this.$message.info('搜索功能开发中');
-    },
-    
-    // 重置筛选条件
-    resetFilters() {
-      this.searchQuery = '';
-      this.deviceStatusFilter = '';
-      this.dateRange = null;
-      this.$message.success('筛选条件已重置');
-    },
-    
-    // 分页相关
-    handleSizeChange(val) {
-      this.pageSize = val;
-    },
-    
-    handleCurrentChange(val) {
-      this.currentPage = val;
-    },
-    
-    // 选择设备
-    handleSelectionChange(selection) {
-      this.selectedDevices = selection;
-    },
-    
-    // 刷新监控
-    refreshMonitor() {
-      this.$message.success('监控数据已刷新');
-      // 模拟实时数据更新
-      this.devices.forEach(device => {
-        if (device.status === 'online') {
-          // 随机更新电量
-          device.battery = Math.max(0, Math.min(100, device.battery + Math.floor(Math.random() * 5) - 3));
-        }
-      });
-    },
-    
-    // 设备管理操作
-    showAddDeviceDialog() {
-      this.newDeviceForm = {
-        deviceId: '',
-        deviceType: 'heartRateBand',
-        serialNumber: '',
-        location: '',
-        remarks: ''
-      };
-      this.addDeviceDialogVisible = true;
-    },
-    
-    submitNewDevice() {
-      this.$refs.newDeviceForm.validate((valid) => {
-        if (valid) {
-          // 创建新设备
-          const newDevice = {
-            ...this.newDeviceForm,
-            status: 'unbound',
-            battery: 100,
-            studentName: '',
-            studentId: '',
-            lastOnline: ''
-          };
-          
-          this.devices.push(newDevice);
-          this.addDeviceDialogVisible = false;
-          this.$message.success('设备创建成功');
-        }
-      });
-    },
-    
-    viewDeviceDetail(deviceId) {
-      this.$message.info('查看设备详情功能开发中');
-    },
-    
-    editDevice(deviceId) {
-      this.$message.info('编辑设备功能开发中');
-    },
-    
-    bindDevice(deviceId) {
-      this.$message.info('绑定设备功能开发中');
-    },
-    
-    unbindDevice(deviceId) {
-      this.$confirm(`确定要解绑该设备吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        const device = this.devices.find(d => d.deviceId === deviceId);
-        if (device) {
-          device.status = 'unbound';
-          device.studentName = '';
-          device.studentId = '';
-          this.$message.success('设备解绑成功');
-        }
-      }).catch(() => {
-        this.$message.info('已取消解绑');
-      });
-    },
-    
-    deleteDevice(deviceId) {
-      this.$confirm(`确定要删除该设备吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        const index = this.devices.findIndex(d => d.deviceId === deviceId);
-        if (index !== -1) {
-          this.devices.splice(index, 1);
-          this.$message.success('设备删除成功');
-        }
-      }).catch(() => {
-        this.$message.info('已取消删除');
-      });
-    },
-    
-    // 批量操作
-    batchExport() {
-      this.$message.info('批量导出功能开发中');
-    },
-    
-    batchBind() {
-      if (this.selectedDevices.length === 0) {
-        this.$message.warning('请选择要操作的设备');
-        return;
-      }
-      this.$message.info('批量绑定功能开发中');
-    },
-    
-    batchUnbind() {
-      if (this.selectedDevices.length === 0) {
-        this.$message.warning('请选择要操作的设备');
-        return;
-      }
-      
-      this.$confirm(`确定要解绑选中的 ${this.selectedDevices.length} 个设备吗？`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        this.selectedDevices.forEach(device => {
-          device.status = 'unbound';
-          device.studentName = '';
-          device.studentId = '';
-        });
-        this.$message.success('设备批量解绑成功');
-        this.selectedDevices = [];
-      }).catch(() => {
-        this.$message.info('已取消操作');
-      });
-    },
-    
-    batchDelete() {
-      if (this.selectedDevices.length === 0) {
-        this.$message.warning('请选择要操作的设备');
-        return;
-      }
-      
-      this.$confirm(`确定要删除选中的 ${this.selectedDevices.length} 个设备吗？此操作不可恢复！`, '警告', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'danger'
-      }).then(() => {
-        this.selectedDevices.forEach(device => {
-          const index = this.devices.findIndex(d => d.deviceId === device.deviceId);
-          if (index !== -1) {
-            this.devices.splice(index, 1);
-          }
-        });
-        this.$message.success('设备批量删除成功');
-        this.selectedDevices = [];
-      }).catch(() => {
-        this.$message.info('已取消操作');
-      });
-    },
-    
-    // 导入导出
-    importDevices() {
-      this.$message.info('导入设备功能开发中');
-    },
-    
-    exportDevices() {
-      this.$message.info('导出设备功能开发中');
-    }
-  },
-  mounted() {
-    // 定时刷新监控数据
-    this.refreshTimer = setInterval(() => {
-      this.refreshMonitor();
-    }, 30000); // 每30秒刷新一次
-  },
-  beforeDestroy() {
-    // 清除定时器
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer);
+    exportSelected(){
+      const data = this.selected.map(d=>({
+        MAC地址:d.mac, 设备型号:d.model, 固件版本:d.firmware, 绑定用户:d.bindUser, 状态:d.status==='online'?'在线':d.status==='offline'?'离线':d.status==='error'?'异常':'未绑定', 激活时间:d.activateTime
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb,ws,'所选设备')
+      XLSX.writeFile(wb,'所选设备列表.xlsx')
+      this.$message.success('导出成功')
     }
   }
-};
+}
 </script>
 
 <style scoped>
-.admin-devices {
-  padding: 20px;
-  background-color: #f5f7fa;
-  height: 100%;
-  overflow-y: auto;
+.device-manager-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
 }
-
 .page-header {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
-
 .page-header h2 {
-  margin: 0 0 10px 0;
-  color: #303133;
+  margin: 0 0 6px;
+  font-size: 22px;
+  color: #1f2329;
 }
-
 .page-header p {
   margin: 0;
-  color: #606266;
+  color: #909399;
 }
-
 .search-card {
+  border-radius: 16px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
-
-.search-container {
+.search-row {
   display: flex;
   align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: 10px;
 }
-
-.search-actions {
+.right-actions {
   margin-left: auto;
   display: flex;
   gap: 10px;
 }
-
-.stats-card {
+.stats-row {
   margin-bottom: 20px;
 }
-
-.stats-container {
-  display: flex;
-  justify-content: space-around;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.stat-item {
+.stat-card {
+  padding: 20px;
+  border-radius: 16px;
+  color: #fff;
   text-align: center;
 }
-
+.stat-card .title {
+  font-size: 14px;
+  margin: 0 0 8px;
+  opacity: 0.9;
+}
+.stat-card .value {
+  font-size: 26px;
+  font-weight: bold;
+  margin: 0;
+}
+.batch-bar {
+  background: #fff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
 .table-card {
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   margin-bottom: 20px;
 }
-
-.pagination-container {
+.pagination {
   display: flex;
   justify-content: flex-end;
-  margin-top: 20px;
+  padding: 16px 20px;
 }
-
-.batch-operations {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-}
-
 .monitor-card {
-  margin-bottom: 20px;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
-
-.monitor-container {
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.monitor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
-
 .monitor-item {
+  background: #f7f8fa;
+  padding: 16px;
+  border-radius: 12px;
+}
+.monitor-item .top {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  background-color: #fafafa;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 12px;
 }
-
-.device-info {
-  margin-bottom: 10px;
-  text-align: center;
-}
-
-.device-id {
+.monitor-item .mac {
   font-weight: bold;
-  font-size: 16px;
-  margin-bottom: 5px;
+  margin: 0;
 }
-
-.device-type {
-  font-size: 14px;
-  color: #606266;
-}
-
-.device-status {
-  margin-bottom: 10px;
-}
-
-.device-battery {
-  width: 100%;
-  margin-bottom: 10px;
+.monitor-item .info {
   display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.device-student {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 14px;
-}
-
-.dialog-footer {
-  text-align: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 10px;
 }
 </style>

@@ -760,6 +760,137 @@ class DeviceDataController {
       res.status(500).json({ message: '获取设备数据统计失败', error: error.message });
     }
   }
+
+  // 获取最新设备数据（仪表盘用）
+  static async getLatestDeviceData(req, res) {
+    try {
+      const pool = require('../index').pool;
+      if (!pool) {
+        return res.status(500).json({ message: '数据库连接池未就绪' });
+      }
+      
+      // 查询每个设备的最新数据
+      const [rows] = await pool.execute(`
+        SELECT d1.*, u.name as student_name
+        FROM device_data d1
+        LEFT JOIN users u ON d1.student_id = u.student_id
+        WHERE d1.record_time = (
+          SELECT MAX(record_time)
+          FROM device_data d2
+          WHERE d2.device_id = d1.device_id
+        )
+        ORDER BY d1.record_time DESC
+        LIMIT 20
+      `);
+      
+      // 格式化数据
+      const formattedData = rows.map(row => ({
+        device_id: row.device_id,
+        student_name: row.student_name,
+        heart_rate: row.heart_rate,
+        steps: row.steps,
+        blood_oxygen: row.blood_oxygen,
+        body_temperature: row.body_temperature,
+        record_time: row.record_time,
+        status: row.heart_rate ? 'online' : 'offline'
+      }));
+      
+      res.json({
+        success: true,
+        data: formattedData
+      });
+    } catch (error) {
+      console.error('获取最新设备数据失败:', error);
+      res.status(500).json({ message: '获取最新设备数据失败', error: error.message });
+    }
+  }
+
+  // 获取仪表盘统计数据
+  static async getDashboardStats(req, res) {
+    try {
+      const pool = require('../index').pool;
+      if (!pool) {
+        return res.status(500).json({ message: '数据库连接池未就绪' });
+      }
+      
+      // 查询用户总数
+      const [userRows] = await pool.execute('SELECT COUNT(*) as total FROM users WHERE role = "student"');
+      const totalUsers = userRows[0].total;
+      
+      // 查询今日活跃用户（今天有数据的用户）
+      const today = new Date().toISOString().split('T')[0];
+      const [dailyActiveRows] = await pool.execute(`
+        SELECT COUNT(DISTINCT student_id) as count 
+        FROM device_data 
+        WHERE DATE(record_time) = ? AND student_id IS NOT NULL
+      `, [today]);
+      const dailyActiveUsers = dailyActiveRows[0].count;
+      
+      // 查询本月活跃用户
+      const currentMonth = new Date().toISOString().substring(0, 7);
+      const [monthlyActiveRows] = await pool.execute(`
+        SELECT COUNT(DISTINCT student_id) as count 
+        FROM device_data 
+        WHERE DATE_FORMAT(record_time, '%Y-%m') = ? AND student_id IS NOT NULL
+      `, [currentMonth]);
+      const monthlyActiveUsers = monthlyActiveRows[0].count;
+      
+      // 查询在线设备（最近5分钟有数据的设备）
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const [onlineDeviceRows] = await pool.execute(`
+        SELECT COUNT(DISTINCT device_id) as count 
+        FROM device_data 
+        WHERE record_time > ?
+      `, [fiveMinutesAgo]);
+      const onlineDevices = onlineDeviceRows[0].count;
+      
+      // 查询总设备数
+      const [totalDeviceRows] = await pool.execute('SELECT COUNT(DISTINCT device_id) as total FROM device_data');
+      const totalDevices = totalDeviceRows[0].total;
+      const offlineDevices = Math.max(0, totalDevices - onlineDevices);
+      
+      // 查询异常设备（心率异常的设备）
+      const [errorDeviceRows] = await pool.execute(`
+        SELECT COUNT(DISTINCT device_id) as count 
+        FROM device_data 
+        WHERE heart_rate < 60 OR heart_rate > 120
+        AND record_time > ?
+      `, [fiveMinutesAgo]);
+      const errorDevices = errorDeviceRows[0].count;
+      
+      // 查询今日数据量
+      const [todayDataRows] = await pool.execute(`
+        SELECT COUNT(*) as count 
+        FROM device_data 
+        WHERE DATE(record_time) = ?
+      `, [today]);
+      const todayDataCount = todayDataRows[0].count;
+      
+      // 查询告警总数（模拟数据）
+      const totalAlerts = Math.floor(Math.random() * 10) + 20;
+      const pendingAlerts = Math.floor(Math.random() * 5) + 3;
+      const criticalAlerts = Math.floor(Math.random() * 2) + 1;
+      
+      res.json({
+        success: true,
+        data: {
+          totalUsers,
+          dailyActiveUsers,
+          monthlyActiveUsers,
+          onlineDevices,
+          offlineDevices,
+          errorDevices,
+          todayDataCount,
+          totalAlerts,
+          pendingAlerts,
+          criticalAlerts
+        }
+      });
+    } catch (error) {
+      console.error('获取仪表盘统计数据失败:', error);
+      res.status(500).json({ message: '获取仪表盘统计数据失败', error: error.message });
+    }
+  }
 }
 
 module.exports = DeviceDataController;

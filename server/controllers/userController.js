@@ -257,6 +257,196 @@ class UserController {
       res.status(500).json({ message: '头像上传失败' });
     }
   }
+
+  // 获取所有用户列表（管理员权限）
+  static async getAllUsers(req, res) {
+    try {
+      const { page = 1, limit = 10, search = '', type = '', status = '' } = req.query;
+      const offset = (page - 1) * limit;
+      
+      // 构建查询条件
+      let whereClause = 'WHERE 1=1';
+      const params = [];
+      
+      if (search) {
+        whereClause += ' AND (username LIKE ? OR name LIKE ? OR phone LIKE ? OR student_id LIKE ? OR device_id LIKE ?)';
+        const searchParam = `%${search}%`;
+        params.push(searchParam, searchParam, searchParam, searchParam, searchParam);
+      }
+      
+      if (type) {
+        whereClause += ' AND role = ?';
+        params.push(type);
+      }
+      
+      if (status) {
+        whereClause += ' AND status = ?';
+        params.push(status);
+      }
+      
+      // 查询用户数据
+      const [rows] = await User.pool.execute(
+        `SELECT id, username, name, phone, role, class_name, student_id, device_id, status, avatar, created_at 
+         FROM users ${whereClause} 
+         ORDER BY created_at DESC 
+         LIMIT ? OFFSET ?`,
+        [...params, parseInt(limit), offset]
+      );
+      
+      // 查询总数
+      const [countRows] = await User.pool.execute(
+        `SELECT COUNT(*) as total FROM users ${whereClause}`,
+        params
+      );
+      
+      const total = countRows[0].total;
+      
+      // 格式化用户数据
+      const formattedUsers = rows.map(row => ({
+        userId: row.id,
+        username: row.username,
+        name: row.name,
+        phone: row.phone,
+        userType: row.role,
+        classInfo: row.class_name,
+        studentId: row.student_id,
+        deviceId: row.device_id,
+        status: row.status,
+        avatar: row.avatar,
+        createdAt: row.created_at,
+        deviceCount: row.device_id ? 1 : 0
+      }));
+      
+      res.json({
+        success: true,
+        data: formattedUsers,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      });
+    } catch (error) {
+      console.error('获取用户列表失败:', error);
+      res.status(500).json({ message: '获取用户列表失败', error: error.message });
+    }
+  }
+
+  // 创建新用户（管理员权限）
+  static async createUserByAdmin(req, res) {
+    try {
+      const { name, username, password, role, class_name, device_id, phone } = req.body;
+      
+      // 验证必填字段
+      if (!name || !username || !password || !role) {
+        return res.status(400).json({ message: '姓名、用户名、密码和角色为必填项' });
+      }
+      
+      // 检查用户名是否已存在
+      const existingUser = await User.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: '用户名已存在' });
+      }
+      
+      // 检查设备ID是否已绑定
+      if (device_id) {
+        const deviceUser = await User.getUserByDeviceId(device_id);
+        if (deviceUser) {
+          return res.status(400).json({ message: '手环ID已绑定其他用户' });
+        }
+      }
+      
+      // 创建用户
+      const hashedPwd = await bcrypt.hash(password, 10);
+      const newUser = await User.createUser({
+        name,
+        username,
+        password: hashedPwd,
+        role,
+        class_name: class_name || null,
+        device_id: device_id || null,
+        phone: phone || null,
+        status: 'active'
+      });
+      
+      const { password: _, ...userNoPwd } = newUser;
+      
+      res.status(201).json({
+        success: true,
+        message: '用户创建成功',
+        data: userNoPwd
+      });
+    } catch (error) {
+      console.error('创建用户失败:', error);
+      res.status(500).json({ message: '创建用户失败', error: error.message });
+    }
+  }
+
+  // 更新用户状态（管理员权限）
+  static async updateUserStatus(req, res) {
+    try {
+      const { userId } = req.params;
+      const { status } = req.body;
+      
+      if (!status || !['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ message: '状态值无效' });
+      }
+      
+      // 获取用户信息
+      const user = await User.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: '用户不存在' });
+      }
+      
+      // 更新用户状态
+      const updated = await User.updateUser(userId, {
+        ...user,
+        status
+      });
+      
+      if (!updated) {
+        return res.status(500).json({ message: '更新用户状态失败' });
+      }
+      
+      res.json({
+        success: true,
+        message: '用户状态更新成功',
+        data: updated
+      });
+    } catch (error) {
+      console.error('更新用户状态失败:', error);
+      res.status(500).json({ message: '更新用户状态失败', error: error.message });
+    }
+  }
+
+  // 删除用户（管理员权限）
+  static async deleteUser(req, res) {
+    try {
+      const { userId } = req.params;
+      
+      // 检查用户是否存在
+      const user = await User.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: '用户不存在' });
+      }
+      
+      // 删除用户
+      const deleted = await User.deleteUser(userId);
+      
+      if (!deleted) {
+        return res.status(500).json({ message: '删除用户失败' });
+      }
+      
+      res.json({
+        success: true,
+        message: '用户删除成功'
+      });
+    } catch (error) {
+      console.error('删除用户失败:', error);
+      res.status(500).json({ message: '删除用户失败', error: error.message });
+    }
+  }
 }
 
 module.exports = UserController;

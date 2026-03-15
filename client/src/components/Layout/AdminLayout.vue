@@ -13,7 +13,7 @@
         >
           <el-menu-item index="/admin/dashboard">
             <el-icon><House /></el-icon>
-            <span>管理首页</span>
+            <span>仪表盘</span>
           </el-menu-item>
           <el-menu-item index="/admin/users">
             <el-icon><User /></el-icon>
@@ -23,17 +23,25 @@
             <el-icon><Monitor /></el-icon>
             <span>设备管理</span>
           </el-menu-item>
-          <el-menu-item index="/admin/device-monitor">
-            <el-icon><VideoCamera /></el-icon>
-            <span>设备监控</span>
+          <el-menu-item index="/admin/health-data">
+            <el-icon><FirstAidKit /></el-icon>
+            <span>健康数据管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/exercise-data">
+            <el-icon><Basketball /></el-icon>
+            <span>运动数据管理</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/alerts">
+            <el-icon><Bell /></el-icon>
+            <span>警告管理</span>
           </el-menu-item>
           <el-menu-item index="/admin/settings">
             <el-icon><Setting /></el-icon>
             <span>系统设置</span>
           </el-menu-item>
-          <el-menu-item index="/admin/data-storage">
+          <el-menu-item index="/admin/logs">
             <el-icon><Document /></el-icon>
-            <span>数据存储</span>
+            <span>日志与监控</span>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -83,7 +91,9 @@ import {
   Document,
   Menu,
   ArrowDown,
-  VideoCamera
+  FirstAidKit,
+  Basketball,
+  Bell
 } from '@element-plus/icons-vue'
 
 export default {
@@ -96,7 +106,9 @@ export default {
     Document,
     Menu,
     ArrowDown,
-    VideoCamera
+    FirstAidKit,
+    Basketball,
+    Bell
   },
   setup() {
     const router = useRouter()

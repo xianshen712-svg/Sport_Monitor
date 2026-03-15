@@ -111,9 +111,24 @@ const routes = [
         component: () => import('../pages/admin/Devices.vue')
       },
       {
-        path: 'device-manage',
-        name: 'AdminDeviceManage',
-        component: () => import('../pages/admin/DeviceManage.vue')
+        path: 'device-monitor',
+        name: 'AdminDeviceMonitor',
+        component: () => import('../pages/admin/DeviceMonitor.vue')
+      },
+      {
+        path: 'health-data',
+        name: 'AdminHealthData',
+        component: () => import('../pages/admin/HealthData.vue')
+      },
+      {
+        path: 'exercise-data',
+        name: 'AdminExerciseData',
+        component: () => import('../pages/admin/ExerciseData.vue')
+      },
+      {
+        path: 'alerts',
+        name: 'AdminAlerts',
+        component: () => import('../pages/admin/Alerts.vue')
       },
       {
         path: 'settings',
@@ -121,14 +136,9 @@ const routes = [
         component: () => import('../pages/admin/Settings.vue')
       },
       {
-        path: 'device-monitor',
-        name: 'AdminDeviceMonitor',
-        component: () => import('../pages/admin/DeviceMonitor.vue')
-      },
-      {
-        path: 'data-storage',
-        name: 'AdminDataStorage',
-        component: () => import('../pages/admin/DataStorage.vue')
+        path: 'logs',
+        name: 'AdminLogs',
+        component: () => import('../pages/admin/Logs.vue')
       },
       {
         // 兼容旧路径 /admin/system-settings -> 重定向到 /admin/settings
